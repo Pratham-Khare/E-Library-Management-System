@@ -1,22 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
  * CATALOGUE SERIALIZERS — the "View" layer for books and taxonomy
- * ---------------------------------------------------------------------------
  * Two shapes per book, and the distinction matters for payload size:
- *
- *   toSummary() — for LISTS. Enough to render a search result card. Omits the
- *                 description, tag list and rating histogram.
- *   toDetail()  — for a SINGLE book. Everything, plus availability derived
- *                 from the current inventory.
- *
- * A 20-book search page using the detail shape would carry twenty 10,000-
- * character descriptions nobody reads on that screen — roughly 200KB of
- * payload to render cards that show a title and a cover.
- *
- * Availability is COMPUTED here rather than stored, because the answer a
- * client needs ("can I borrow this right now?") depends on both physical
- * copies and digital licences, and no single stored field expresses it.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -41,9 +25,6 @@ const toRefs = (values) => (values ?? []).map(toRef).filter(Boolean);
 
 /**
  * Availability, computed from physical stock and digital licences.
- *
- * `canBorrowNow` is the single boolean a client actually branches on; the
- * separate counts are there so it can explain WHY when the answer is no.
  */
 const availabilityOf = (book) => {
   const physicalAvailable = book.inventory?.availableCopies ?? 0;
@@ -63,9 +44,7 @@ const availabilityOf = (book) => {
   };
 };
 
-/* ===========================================================================
- * Books
- * ======================================================================== */
+/* Books */
 
 /** Compact shape for search results and listings. */
 export const toBookSummary = (book) => {
@@ -141,16 +120,10 @@ export const toBookAdmin = (book) => {
 
 export const listBookSummaries = (books) => (books ?? []).map(toBookSummary);
 
-/* ===========================================================================
- * Copies
- * ======================================================================== */
+/* Copies */
 
 /**
  * A physical copy.
- *
- * `borrower` is included ONLY for staff. A member scanning a shelf has no
- * business learning which of their neighbours has the other copy — that is a
- * genuine privacy leak, and it costs nothing to withhold.
  */
 export const toCopy = (copy, { includeBorrower = false } = {}) => {
   if (!copy) return null;
@@ -194,9 +167,7 @@ export const toCopy = (copy, { includeBorrower = false } = {}) => {
 
 export const listCopies = (copies, options) => (copies ?? []).map((copy) => toCopy(copy, options));
 
-/* ===========================================================================
- * Taxonomy
- * ======================================================================== */
+/* Taxonomy */
 
 const authorPhotoUrl = (photo) =>
   photo ? `${config.app.url}${config.upload.categories.cover.urlPrefix}/${photo}` : null;
@@ -260,16 +231,10 @@ export const listAuthors = (authors) => (authors ?? []).map(toAuthor);
 export const listPublishers = (publishers) => (publishers ?? []).map(toPublisher);
 export const listCategories = (categories) => (categories ?? []).map(toCategory);
 
-/* ===========================================================================
- * Search
- * ======================================================================== */
+/* Search */
 
 /**
  * A search response.
- *
- * `fallbackUsed` is surfaced deliberately: it lets a client say "no exact
- * matches — showing similar titles" instead of presenting weaker fuzzy results
- * as though they were exact hits.
  */
 export const toSearchResponse = ({ items, fallbackUsed, searchTerm }) => ({
   results: listBookSummaries(items),

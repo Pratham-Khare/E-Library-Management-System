@@ -1,7 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * FINE CONTROLLER
- * ---------------------------------------------------------------------------
+ * Fine controller.
  */
 
 import * as fineService from '../services/fine.service.js';
@@ -15,10 +13,6 @@ const isStaff = (user) => ['LIBRARIAN', 'ADMIN'].includes(user.role);
 
 /**
  * The caller's own fines.
- *
- * The `summary` block carries the number that actually matters to a member:
- * whether they are currently blocked from borrowing, and how much they would
- * need to pay to stop being blocked.
  */
 export const myFines = asyncHandler(async (req, res) => {
   const { items, meta, summary } = await fineService.listForUser(req.user.id, req.query);

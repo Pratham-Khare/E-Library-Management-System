@@ -1,20 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * EMAIL LAYOUT
- * ---------------------------------------------------------------------------
  * The HTML shell every built-in template renders into, plus small builders for
  * the pieces templates repeat (buttons, detail tables, muted notes).
- *
- * EMAIL HTML IS NOT WEB HTML. Gmail strips <style> blocks, Outlook renders
- * through Word's engine, and flexbox and grid are unavailable almost
- * everywhere. So this uses table-based layout and inline styles throughout —
- * verbose, but the only thing that renders consistently.
- *
- * Every email also ships a PLAIN-TEXT alternative. Some clients prefer it,
- * some users force it, and spam filters treat HTML-only mail with suspicion.
- * The text part is generated per-template rather than stripped from HTML,
- * because a stripped version reads like debris.
- * ---------------------------------------------------------------------------
  */
 
 import mailConfig from '../../../config/mail.js';
@@ -32,11 +18,6 @@ export const escapeHtml = (value) =>
 
 /**
  * Wrap body content in the full email document.
- *
- * @param {object} params
- * @param {string} params.title      Heading shown at the top of the card.
- * @param {string} params.bodyHtml   Pre-built HTML for the message body.
- * @param {string} [params.preheader] Inbox preview text, hidden in the body.
  */
 export const renderLayout = ({ title, bodyHtml, preheader = '' }) => `<!DOCTYPE html>
 <html lang="en">
@@ -99,9 +80,6 @@ export const paragraph = (text) =>
 
 /**
  * A call-to-action button.
- *
- * Built as a table cell rather than a styled <a>, because Outlook ignores
- * padding on inline elements and would render a bare link instead of a button.
  */
 export const button = (label, url) => `
   <table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0;">

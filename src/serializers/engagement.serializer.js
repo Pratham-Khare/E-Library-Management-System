@@ -1,7 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
  * ENGAGEMENT SERIALIZERS — reviews, reading lists, notifications
- * ---------------------------------------------------------------------------
  */
 
 import { toBookSummary } from './catalog.serializer.js';
@@ -13,10 +11,6 @@ const isPopulated = (value) => value && typeof value === 'object' && !value.buff
 
 /**
  * A review.
- *
- * `viewerId` decides two things a client needs but cannot compute itself:
- * whether this is the caller's own review (so it can show Edit), and whether
- * they have already voted it helpful (so the button renders in the right state).
  */
 export const toReview = (review, { viewerId = null, includeModeration = false } = {}) => {
   if (!review) return null;

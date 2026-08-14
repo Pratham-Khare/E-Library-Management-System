@@ -1,22 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHENTICATION SERVICE
- * ---------------------------------------------------------------------------
  * All authentication business logic. Controllers do nothing but translate HTTP
  * to and from these functions.
- *
- * The two parts worth reading closely:
- *
- *   REFRESH-TOKEN ROTATION WITH REUSE DETECTION — `refresh()` below. Each
- *   exchange mints a new token and revokes the old one, and presenting an
- *   already-rotated token is treated as proof of theft, revoking the entire
- *   session family. See models/RefreshToken.js for the reasoning.
- *
- *   USER ENUMERATION RESISTANCE — several functions here deliberately return
- *   the same response whether or not an account exists. An endpoint that
- *   answers "no such user" for one email and "wrong password" for another
- *   hands an attacker a free membership list.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -32,17 +16,10 @@ import { ROLES, MEMBERSHIP_TYPES, USER_STATUS, COLLEGE_MEMBERSHIP_TYPES } from '
 import { NOTIFICATION_TYPE, DEFAULT_READING_LISTS } from '../constants/enums.js';
 import mailService from './mail/index.js';
 
-/* ===========================================================================
- * Token issuing
- * ======================================================================== */
+/* Token issuing */
 
 /**
  * Mint an access/refresh pair and persist the refresh token's hash.
- *
- * @param {object} user
- * @param {object} context Request metadata recorded on the session.
- * @param {string|null} [familyId] Continues an existing rotation chain; a new
- *   family is started when omitted (i.e. on a fresh login).
  */
 const issueTokenPair = async (user, context = {}, familyId = null) => {
   const accessToken = signAccessToken(user);
@@ -62,19 +39,10 @@ const issueTokenPair = async (user, context = {}, familyId = null) => {
   return { accessToken, refreshToken: rawRefreshToken, refreshTokenDoc: stored, familyId: tokenFamily };
 };
 
-/* ===========================================================================
- * Registration
- * ======================================================================== */
+/* Registration */
 
 /**
  * Register a new member.
- *
- * The role is hard-coded to MEMBER and never read from input. Combined with
- * the validator stripping unknown keys, that makes self-promotion to
- * administrator structurally impossible rather than merely unlikely.
- *
- * @param {object} data Validated registration payload.
- * @param {object} context { ip, userAgent }
  */
 export const register = async (data, context = {}) => {
   const existing = await User.findOne({ email: data.email });
@@ -117,9 +85,6 @@ export const register = async (data, context = {}) => {
 
   /**
    * Create the four default shelves.
-   *
-   * Best-effort: a failure here must not fail the registration, and
-   * `ensureDefaults` recreates them lazily on first access anyway.
    */
   const { ensureDefaults } = await import('./readingList.service.js');
   ensureDefaults(user._id).catch((error) =>
@@ -144,21 +109,10 @@ export const register = async (data, context = {}) => {
   return { user, tokens, defaultReadingLists: DEFAULT_READING_LISTS };
 };
 
-/* ===========================================================================
- * Login
- * ======================================================================== */
+/* Login */
 
 /**
  * Authenticate with email and password.
- *
- * A wrong email and a wrong password produce the IDENTICAL error. Distinguishing
- * them would turn the login endpoint into a membership-list oracle: an attacker
- * submits addresses and reads which ones come back "wrong password".
- *
- * The password is verified even when no user was found, so the response time
- * does not differ measurably between the two cases. Skipping the bcrypt work
- * for unknown emails would leak exactly the same information through timing
- * that the identical message was meant to hide.
  */
 export const login = async ({ email, password }, context = {}) => {
   const user = await User.findForAuthentication(email);
@@ -209,29 +163,10 @@ export const login = async ({ email, password }, context = {}) => {
   return { user, tokens };
 };
 
-/* ===========================================================================
- * Refresh — rotation with reuse detection
- * ======================================================================== */
+/* Refresh — rotation with reuse detection */
 
 /**
  * Exchange a refresh token for a new pair.
- *
- * THE REUSE-DETECTION BRANCH IS THE POINT OF THIS FUNCTION.
- *
- * Because every exchange revokes the token it consumed, a legitimate client
- * always holds the newest token in the chain. Presenting an ALREADY-REVOKED
- * one therefore means two parties hold tokens from the same family — the only
- * realistic explanation being that one of them stole it.
- *
- * We cannot tell which is which, so the response is to revoke the whole family.
- * The genuine user signs in again with a password the attacker does not have;
- * the attacker is finished. Logging out the victim is a real cost, and the
- * right one to pay.
- *
- *     login    ──> A (family F)
- *     refresh  ──> B (family F), A revoked
- *     refresh  ──> C (family F), B revoked
- *     attacker replays A ──> A already revoked ==> revoke ALL of F
  */
 export const refresh = async (rawToken, context = {}) => {
   if (!rawToken) {
@@ -301,16 +236,10 @@ export const refresh = async (rawToken, context = {}) => {
   return { user, tokens };
 };
 
-/* ===========================================================================
- * Logout
- * ======================================================================== */
+/* Logout */
 
 /**
  * Revoke one session.
- *
- * Silently succeeds when the token is unknown or already revoked. Logout is
- * idempotent by nature, and a client that has lost track of its token should
- * not receive an error for trying to clean up.
  */
 export const logout = async (rawToken) => {
   if (!rawToken) return { revoked: false };
@@ -354,21 +283,10 @@ export const revokeSession = async (userId, sessionId) => {
   return { revoked: true };
 };
 
-/* ===========================================================================
- * Password reset
- * ======================================================================== */
+/* Password reset */
 
 /**
  * Begin a password reset.
- *
- * ALWAYS reports success, even for an unknown email. Answering "no such
- * account" would let anyone test whether an address is registered — and the
- * legitimate user learns nothing extra from a different message, since they
- * are about to check their inbox either way.
- *
- * In development the reset URL is returned in the response as well, because
- * with no SendGrid key the email goes to the log and this saves a scroll.
- * Guarded by NODE_ENV — in production it would hand out account takeovers.
  */
 export const forgotPassword = async ({ email }, context = {}) => {
   const genericResponse = {
@@ -421,11 +339,6 @@ export const forgotPassword = async ({ email }, context = {}) => {
     ...genericResponse,
     /**
      * Development and test only — NEVER production.
-     *
-     * Expressed as "not production" rather than "is development" so automated
-     * tests can exercise the full reset flow without a mail provider. The
-     * environment enum permits only development, production and test, so this
-     * cannot accidentally include a staging deployment.
      */
     ...(config.app.isProduction ? {} : { devResetUrl: resetUrl, devToken: rawToken }),
   };
@@ -433,10 +346,6 @@ export const forgotPassword = async ({ email }, context = {}) => {
 
 /**
  * Complete a password reset.
- *
- * Every existing session is revoked afterwards. If the reset was triggered by
- * a compromise, leaving the attacker's sessions alive would make the whole
- * exercise pointless.
  */
 export const resetPassword = async ({ token, password }) => {
   const stored = await PasswordResetToken.findByRawToken(token);
@@ -480,10 +389,6 @@ export const resetPassword = async ({ token, password }) => {
 
 /**
  * Change a password while signed in.
- *
- * Requires the current password even though the caller is already
- * authenticated — otherwise an unattended session or a stolen access token
- * becomes a permanent account takeover.
  */
 export const changePassword = async (userId, { currentPassword, newPassword }) => {
   const user = await User.findById(userId).select('+passwordHash');
@@ -514,19 +419,10 @@ export const changePassword = async (userId, { currentPassword, newPassword }) =
   return { user };
 };
 
-/* ===========================================================================
- * Bootstrap admin
- * ======================================================================== */
+/* Bootstrap admin */
 
 /**
  * Create the first administrator, if none exists.
- *
- * Run once at startup. Without it a fresh installation is unreachable: every
- * route that can create an admin requires an admin, so there would be no way
- * to make the first one through the API.
- *
- * Idempotent — it checks for existing admins and does nothing when any are
- * present, so restarts are safe.
  */
 export const ensureBootstrapAdmin = async () => {
   if (!config.bootstrapAdmin.enabled) return { created: false, reason: 'disabled' };

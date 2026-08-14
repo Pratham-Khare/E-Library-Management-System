@@ -1,22 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * AGGREGATED APPLICATION CONFIGURATION
- * ---------------------------------------------------------------------------
  * The single object the rest of the application imports:
- *
- *     import config from '../config/index.js';
- *     config.app.port
- *     config.library.getPolicy(user.membershipType).loanPeriodDays
- *     config.ai.quota.total
- *
- * Rules this file exists to enforce:
- *   1. NOTHING outside src/config/ reads process.env.
- *   2. Every value is validated and correctly typed before anything uses it.
- *   3. Configuration is inspectable in one place, not scattered across files.
- *
- * The object is frozen, so a stray assignment fails instead of silently
- * changing behaviour halfway through a process's life.
- * ---------------------------------------------------------------------------
  */
 
 import env, { ROOT_DIR } from './env.js';
@@ -30,9 +13,7 @@ import mail from './mail.js';
 import logger from './logger.js';
 import swagger from './swagger.js';
 
-/* ===========================================================================
- * Application
- * ======================================================================== */
+/* Application */
 
 export const app = Object.freeze({
   name: env.APP_NAME,
@@ -53,7 +34,6 @@ export const app = Object.freeze({
    * to pick the real client IP out of X-Forwarded-For. Getting it wrong breaks
    * rate limiting in one of two ways: too low and every request appears to
    * come from the proxy (one shared bucket for everyone); too high and a
-   * client can spoof the header to get a fresh bucket per request.
    */
   trustProxy: env.TRUST_PROXY,
 
@@ -69,9 +49,7 @@ export const app = Object.freeze({
   version: '1.0.0',
 });
 
-/* ===========================================================================
- * CORS
- * ======================================================================== */
+/* CORS */
 
 export const cors = Object.freeze({
   origins: env.CORS_ORIGINS,
@@ -98,17 +76,11 @@ export const cors = Object.freeze({
   maxAge: 86400, // cache the preflight for a day
 });
 
-/* ===========================================================================
- * Bootstrap admin
- * ======================================================================== */
+/* Bootstrap admin */
 
 /**
  * On first boot, if the database holds zero ADMIN accounts, one is created
  * from these values. Idempotent — once any admin exists it never runs again.
- *
- * This exists so a fresh clone is never locked out: without it there would be
- * no way to create the first privileged account through the API, since every
- * admin-creating route itself requires an admin.
  */
 export const bootstrapAdmin = Object.freeze({
   enabled: env.BOOTSTRAP_ADMIN_ENABLED,
@@ -117,9 +89,7 @@ export const bootstrapAdmin = Object.freeze({
   password: env.BOOTSTRAP_ADMIN_PASSWORD,
 });
 
-/* ===========================================================================
- * Scheduled jobs
- * ======================================================================== */
+/* Scheduled jobs */
 
 /**
  * node-cron schedules. Set CRON_ENABLED=false to disable every background job
@@ -151,9 +121,7 @@ export const cron = Object.freeze({
   }),
 });
 
-/* ===========================================================================
- * Pagination
- * ======================================================================== */
+/* Pagination */
 
 export const pagination = Object.freeze({
   defaultPage: 1,
@@ -162,9 +130,7 @@ export const pagination = Object.freeze({
   maxLimit: library.catalog.maxPageSize,
 });
 
-/* ===========================================================================
- * The aggregate
- * ======================================================================== */
+/* The aggregate */
 
 const config = Object.freeze({
   app,

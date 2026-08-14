@@ -1,7 +1,4 @@
 /**
- * ---------------------------------------------------------------------------
- * PASSWORD RESET TOKEN MODEL
- * ---------------------------------------------------------------------------
  * Single-use, short-lived tokens backing the forgot-password flow.
  *
  * A reset token is the most dangerous credential the system issues: it grants
@@ -20,7 +17,6 @@
  * Kept in its own collection rather than as fields on User so the TTL index
  * can clean up expired tokens automatically, and so a reset request never
  * writes to the User document at all.
- * ---------------------------------------------------------------------------
  */
 
 import crypto from 'node:crypto';

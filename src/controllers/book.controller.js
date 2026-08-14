@@ -1,15 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * BOOK CONTROLLER
- * ---------------------------------------------------------------------------
  * HTTP adapters for /books. All logic lives in book.service.js.
- *
- * The one judgement made here is WHICH SERIALIZER to use: staff get the admin
- * shape (soft-delete state, who catalogued it, per-copy borrower details),
- * members get the public one. Deciding that in the controller — rather than
- * letting the service return everything and hoping the client ignores what it
- * should not see — is what keeps the boundary enforceable.
- * ---------------------------------------------------------------------------
  */
 
 import * as bookService from '../services/book.service.js';
@@ -26,9 +16,7 @@ import {
 /** Library staff see fields members must not. */
 const isStaff = (user) => Boolean(user) && ['LIBRARIAN', 'ADMIN'].includes(user.role);
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 export const listBooks = asyncHandler(async (req, res) => {
   const { items, meta } = await bookService.list(req.query, req.user);
@@ -56,9 +44,7 @@ export const getFeed = asyncHandler(async (req, res) => {
   return ok(res, listBookSummaries(books), `${req.params.feed} fetched`);
 });
 
-/* ===========================================================================
- * Writing (staff)
- * ======================================================================== */
+/* Writing (staff) */
 
 export const createBook = asyncHandler(async (req, res) => {
   const book = await bookService.create(req.body, req.user);
@@ -88,9 +74,7 @@ export const restoreBook = asyncHandler(async (req, res) => {
   return ok(res, toBookAdmin(book), 'Book restored to the catalogue');
 });
 
-/* ===========================================================================
- * Copies
- * ======================================================================== */
+/* Copies */
 
 export const listBookCopies = asyncHandler(async (req, res) => {
   const { book, copies } = await bookService.listCopies(req.params.bookId, req.query);

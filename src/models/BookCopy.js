@@ -1,30 +1,11 @@
 /**
- * ---------------------------------------------------------------------------
- * BOOK COPY MODEL — one physical item on a shelf
- * ---------------------------------------------------------------------------
- * Six copies of the same title are six documents here and one Book document.
+ * One physical item on a shelf. Six copies of a title are six documents here
+ * and one Book document.
  *
- * THIS COLLECTION IS WHERE BORROWING IS MADE SAFE UNDER CONCURRENCY.
- *
- * The obvious implementation of "borrow a book" is:
- *
- *     const copy = await BookCopy.findOne({ book, status: 'AVAILABLE' });
- *     copy.status = 'ON_LOAN';
- *     await copy.save();
- *
- * That is a read-then-write, and two simultaneous requests both read the same
- * AVAILABLE copy before either writes. Both succeed. One physical book, two
- * borrowers, and a librarian with an argument to referee.
- *
- * `claimAvailableCopy()` below instead uses a single atomic `findOneAndUpdate`
- * filtered on `status: 'AVAILABLE'` — a compare-and-swap. MongoDB guarantees
- * single-document atomicity, so exactly one of two concurrent claims matches;
- * the other gets null and is told to try again. No transaction required, which
- * matters because a standalone `mongod` has none.
- *
- * `accessionNumber` is the barcode physically stuck on the item. It is what a
- * librarian scans, so it must be unique across the entire library.
- * ---------------------------------------------------------------------------
+ * `claimAvailableCopy()` is where borrowing is made safe: a single atomic
+ * findOneAndUpdate filtered on `status: 'AVAILABLE'`, so two concurrent claims
+ * cannot both win. No transaction needed, which matters because a standalone
+ * mongod has none.
  */
 
 import mongoose from 'mongoose';
@@ -38,13 +19,7 @@ import {
 
 const { Schema, model } = mongoose;
 
-/**
- * An entry in the copy's status history.
- *
- * Kept because "this copy has been marked damaged three times in a year" is a
- * real acquisitions signal, and because a copy going missing needs an audit
- * trail rather than a silently changed field.
- */
+/** One status change, kept as an audit trail rather than a silent overwrite. */
 const statusHistorySchema = new Schema(
   {
     from: { type: String, enum: COPY_STATUS_VALUES },
@@ -65,10 +40,7 @@ const bookCopySchema = new Schema(
       index: true,
     },
 
-    /**
-     * The barcode on the physical item — what a librarian scans at the desk.
-     * Unique across the whole library, not just within a title.
-     */
+    /** Barcode on the item — scanned at the desk, unique library-wide. */
     accessionNumber: {
       type: String,
       required: [true, 'An accession number is required'],
@@ -78,16 +50,10 @@ const bookCopySchema = new Schema(
       maxlength: [50, 'Accession number cannot exceed 50 characters'],
     },
 
-    /**
-     * Where it physically sits, e.g. "A-12-3" for aisle A, shelf 12, position 3.
-     * The difference between "we own it" and "you can find it".
-     */
+    /** Where it physically sits, e.g. "A-12-3" — aisle A, shelf 12, position 3. */
     shelfLocation: { type: String, trim: true, uppercase: true, maxlength: 50, default: null },
 
-    /**
-     * Current state. AVAILABLE -> ON_LOAN is the atomic transition that makes
-     * borrowing correct; see claimAvailableCopy() below.
-     */
+    /** AVAILABLE -> ON_LOAN is the atomic transition; see claimAvailableCopy(). */
     status: {
       type: String,
       enum: { values: COPY_STATUS_VALUES, message: '{VALUE} is not a valid copy status' },
@@ -110,11 +76,7 @@ const bookCopySchema = new Schema(
 
     /* --- Circulation ----------------------------------------------------- */
 
-    /**
-     * The loan currently holding this copy, when status is ON_LOAN.
-     * Denormalised so the desk can answer "who has this?" from a barcode scan
-     * without querying the Loan collection.
-     */
+    /** The loan holding this copy. Denormalised so a barcode scan answers "who has this?". */
     currentLoan: { type: Schema.Types.ObjectId, ref: 'Loan', default: null },
 
     /** Lifetime loans of THIS copy. Identifies items due for replacement. */
@@ -128,16 +90,11 @@ const bookCopySchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /**
- * THE MOST IMPORTANT INDEX IN THE CIRCULATION PATH.
- *
- * `claimAvailableCopy()` queries exactly `{ book, status: 'AVAILABLE' }`, on
- * every single borrow attempt. This compound index turns that into an index
- * seek rather than a scan across every copy of a popular title.
+ * The hot path: claimAvailableCopy() queries exactly this shape on every borrow,
+ * so the compound index turns it into a seek rather than a scan.
  */
 bookCopySchema.index({ book: 1, status: 1 });
 
@@ -146,23 +103,17 @@ bookCopySchema.index({ shelfLocation: 1 });
 /** "Show me everything currently out" for the circulation dashboard. */
 bookCopySchema.index({ status: 1, updatedAt: -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
-/** Can this copy be borrowed right now? */
 bookCopySchema.virtual('isBorrowable').get(function isBorrowable() {
   return this.status === COPY_STATUS.AVAILABLE;
 });
 
-/** Is it out of circulation permanently? */
 bookCopySchema.virtual('isRetired').get(function isRetired() {
   return this.status === COPY_STATUS.WITHDRAWN || this.status === COPY_STATUS.LOST;
 });
 
-/* ===========================================================================
- * Hooks
- * ======================================================================== */
+/* Hooks */
 
 /** Record every status change, so a copy's history is never lost to an overwrite. */
 bookCopySchema.pre('save', function recordStatusChange(next) {
@@ -180,8 +131,7 @@ bookCopySchema.pre('save', function recordStatusChange(next) {
     note: context.note ?? null,
   });
 
-  // Keep history bounded. A heavily circulated copy could otherwise accumulate
-  // thousands of entries and push the document toward MongoDB's 16MB ceiling.
+    // Bounded, or a heavily circulated copy drifts toward the 16MB document ceiling.
   if (this.statusHistory.length > 50) {
     this.statusHistory = this.statusHistory.slice(-50);
   }
@@ -194,29 +144,11 @@ bookCopySchema.post('init', function rememberStatus() {
   this._previousStatus = this.status;
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /**
- * ATOMICALLY claim an available copy of a book.
- *
- * The single most important function in the circulation engine.
- *
- * `findOneAndUpdate` with `status: 'AVAILABLE'` in the FILTER is a
- * compare-and-swap: MongoDB matches and updates one document as a single
- * atomic operation, so of two concurrent callers exactly one matches and the
- * other receives null. There is no window between reading and writing for a
- * second request to slip into.
- *
- * This is why borrowing is correct on a standalone `mongod` with no
- * transaction support at all — the guarantee comes from single-document
- * atomicity, which every MongoDB deployment provides.
- *
- * @param {string} bookId
- * @param {string} loanId Set as `currentLoan` in the same operation.
- * @param {import('mongoose').ClientSession|null} [session]
- * @returns {Promise<object|null>} The claimed copy, or null if none was free.
+ * Atomically claim an available copy — the compare-and-swap that makes
+ * concurrent borrowing correct. Returns null when nothing was free.
  */
 bookCopySchema.statics.claimAvailableCopy = async function claimAvailableCopy(
   bookId,
@@ -237,8 +169,7 @@ bookCopySchema.statics.claimAvailableCopy = async function claimAvailableCopy(
     },
     {
       new: true,
-      // Prefer the lowest-circulation copy, so wear is spread evenly across
-      // the library's stock instead of destroying whichever one sorts first.
+      // Least-circulated copy first, so wear spreads across the stock.
       sort: { loanCount: 1 },
       ...(session ? { session } : {}),
     }
@@ -246,10 +177,8 @@ bookCopySchema.statics.claimAvailableCopy = async function claimAvailableCopy(
 };
 
 /**
- * Release a copy back to the shelf. The inverse of the claim.
- *
- * Also filtered on the expected current status, so a double-return cannot
- * increment availability twice and invent a copy the library does not own.
+ * Release a copy back to the shelf. Filtered on ON_LOAN, so a double return
+ * cannot increment availability twice.
  */
 bookCopySchema.statics.releaseCopy = async function releaseCopy(copyId, session = null) {
   return this.findOneAndUpdate(
@@ -265,15 +194,8 @@ bookCopySchema.statics.countAvailable = function countAvailable(bookId) {
 };
 
 /**
- * Generate the next accession number.
- *
- * Format: ACC-<year>-<sequence>, e.g. ACC-2026-000137. Human-readable and
- * ordered, which matters when someone is reading it off a spine label.
- *
- * Allocated through the atomic Counter, NOT `countDocuments() + 1` — the
- * latter is a read-then-write and produces duplicates whenever copies are
- * added concurrently, which a bulk acquisition import does by definition.
- * See models/Counter.js.
+ * Next accession number, ACC-<year>-<sequence>. Allocated through the atomic
+ * Counter rather than countDocuments() + 1, which collides on concurrent adds.
  */
 bookCopySchema.statics.generateAccessionNumber = async function generateAccessionNumber() {
   const year = new Date().getFullYear();

@@ -1,19 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHENTICATION CONTROLLER
- * ---------------------------------------------------------------------------
  * Thin HTTP adapters. Each handler does exactly three things: read validated
  * input off the request, call ONE service function, and serialise the result.
- *
- * No business rules live here. Keeping controllers this thin is what lets the
- * same logic be reused by the seeder and by scheduled jobs without dragging an
- * Express request along with it.
- *
- * The refresh token is ALSO set as an httpOnly cookie alongside being returned
- * in the body. Browser clients get a token JavaScript cannot read, so an XSS
- * flaw cannot exfiltrate it; non-browser clients (Postman, mobile, server-to-
- * server) read it from the body. Both are accepted on the way back in.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -32,13 +19,6 @@ const requestContext = (req) => ({
 
 /**
  * Cookie options for the refresh token.
- *
- *   httpOnly — JavaScript cannot read it, so XSS cannot steal it.
- *   sameSite lax — sent on normal navigation but not on cross-site POSTs,
- *                  which blocks CSRF against the refresh endpoint.
- *   secure   — HTTPS only. Off in development, where there is no TLS.
- *   path     — scoped to the auth routes, so it is not attached to every
- *              request in the app.
  */
 const refreshCookieOptions = () => ({
   httpOnly: true,
@@ -57,9 +37,7 @@ const clearRefreshCookie = (res) =>
 /** Prefer the body, fall back to the cookie. Supports both client styles. */
 const readRefreshToken = (req) => req.body?.refreshToken || req.cookies?.refreshToken || null;
 
-/* ===========================================================================
- * Handlers
- * ======================================================================== */
+/* Handlers */
 
 export const register = asyncHandler(async (req, res) => {
   const { user, tokens } = await authService.register(req.body, requestContext(req));

@@ -1,24 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * DATABASE SEEDER
- * ---------------------------------------------------------------------------
  *     npm run seed         Add demo data. Refuses if the database already has any.
  *     npm run seed:fresh   Wipe everything, then seed.
  *     npm run seed:clear   Empty the collections without seeding.
- *
- * Two safety properties, because a seeder is a script that deletes data:
- *
- *   1. `npm run seed` REFUSES to run against a populated database. Silently
- *      adding a second copy of every book is worse than doing nothing.
- *   2. Anything destructive REFUSES to run when NODE_ENV=production. There is
- *      no legitimate reason to wipe a production library catalogue from a CLI
- *      convenience script, and the one time it happens by accident is the time
- *      it matters.
- *
- * The seeder is built up phase by phase — each phase adds its own step to the
- * pipeline below — so `npm run seed` stays runnable throughout development
- * rather than appearing only at the end.
- * ---------------------------------------------------------------------------
  */
 
 import fs from 'node:fs/promises';
@@ -57,9 +40,7 @@ import {
   books as bookFixtures,
 } from './data/catalog.js';
 
-/* ===========================================================================
- * CLI flags
- * ======================================================================== */
+/* CLI flags */
 
 const args = process.argv.slice(2);
 const FRESH = args.includes('--fresh');
@@ -91,16 +72,10 @@ const seededModels = [
   User,
 ];
 
-/* ===========================================================================
- * Guards
- * ======================================================================== */
+/* Guards */
 
 /**
  * Refuse destructive operations outside development.
- *
- * `npm run seed:fresh` drops every collection. Running that against a real
- * library's catalogue would destroy its entire circulation history, and the
- * only defence worth having is one that cannot be forgotten.
  */
 const assertSafeToDestroy = () => {
   if (config.app.isProduction) {
@@ -117,9 +92,7 @@ const databaseHasData = async () => {
   return counts.some((count) => count > 0);
 };
 
-/* ===========================================================================
- * Steps
- * ======================================================================== */
+/* Steps */
 
 const clearCollections = async () => {
   logger.info('Clearing seeded collections…');
@@ -136,13 +109,6 @@ const clearCollections = async () => {
 
 /**
  * Delete uploaded files alongside the records that referenced them.
- *
- * Without this, wiping the database orphans every cover and ebook on disk —
- * bytes nothing points at, accumulating on every reseed. Worse, ebooks are
- * DEDUPLICATED BY CHECKSUM: a surviving file from a previous run means the
- * next upload of the same file matches an orphan and inherits its state
- * instead of being processed fresh, which produces genuinely confusing
- * behaviour that looks like an application bug.
  */
 const clearUploadedFiles = async () => {
   const directories = [
@@ -175,11 +141,6 @@ const clearUploadedFiles = async () => {
 
 /**
  * Seed users.
- *
- * Passwords are hashed ONCE and reused. Every account shares the same seed
- * password, and bcrypt at cost factor 10 takes roughly 100ms per hash — so
- * hashing per user would add a needless second to every seed run for an
- * identical result.
  */
 const seedUsers = async () => {
   logger.info('Seeding users…');
@@ -195,8 +156,6 @@ const seedUsers = async () => {
 
     // Created through the model rather than insertMany, so the pre-save hooks
     // run — which is what generates the membership numbers and enforces the
-    // studentProfile invariant. A bulk insert would bypass both and produce
-    // data the application itself would consider invalid.
     const user = await User.create({ ...data, passwordHash });
     created.push(user);
   }
@@ -228,10 +187,6 @@ const seedTaxonomy = async () => {
 /**
  * Walk the nested category fixture depth-first, creating each node with its
  * parent already in place.
- *
- * Order matters: the model's pre-save hook reads the PARENT's ancestor path to
- * build the child's, so a parent must exist before its children. Depth-first
- * traversal guarantees that without any second pass to fix up paths.
  */
 const seedCategories = async () => {
   logger.info('Seeding categories…');
@@ -262,11 +217,6 @@ const seedCategories = async () => {
 
 /**
  * Books and their physical copies.
- *
- * Fixtures reference authors, publishers and categories BY NAME, so lookup
- * maps are built first. Referencing by name keeps the fixture file readable
- * and independent of insertion order — an id-based fixture would have to be
- * rewritten every time the taxonomy changed.
  */
 const seedBooks = async ({ authors, publishers, categories }) => {
   logger.info('Seeding books and copies…');
@@ -326,11 +276,6 @@ const seedBooks = async ({ authors, publishers, categories }) => {
 
   /**
    * Rebuild every denormalised counter from source.
-   *
-   * The fixtures were inserted directly through the models, which bypasses the
-   * service layer that normally maintains these — so rather than trusting
-   * increments, recompute them. This also exercises the same reconciliation
-   * path the nightly job uses, which is worth knowing works.
    */
   logger.info('  reconciling denormalised counters…');
 
@@ -366,15 +311,6 @@ const seedBooks = async ({ authors, publishers, categories }) => {
 
 /**
  * Loans, in deliberately varied states.
- *
- * THE OVERDUE ONES ARE THE POINT. Fines only accrue after a grace period, so
- * without back-dated loans the fine logic, the borrowing block and the overdue
- * cron job are all untestable without waiting several real days or editing
- * documents by hand. Seeding loans that are already 5, 12 and 40 days late
- * makes every one of those paths immediately exercisable.
- *
- * Loans are created directly rather than through the service, because the
- * service (correctly) refuses to issue a loan with a due date in the past.
  */
 const seedLoans = async ({ users, books }) => {
   logger.info('Seeding loans and fines…');
@@ -505,9 +441,6 @@ const seedLoans = async ({ users, books }) => {
 
   /**
    * Rebuild the denormalised counters from source.
-   *
-   * The fixtures wrote directly to the collections, bypassing the service
-   * layer that normally maintains these — so recompute rather than trust.
    */
   logger.info('  reconciling loan counters…');
 
@@ -540,13 +473,6 @@ const seedLoans = async ({ users, books }) => {
 
 /**
  * Reviews, reading lists and notifications.
- *
- * Reviews are spread across books and ratings so the rating AGGREGATE and its
- * 1-5 histogram have something real to compute — a book with one 5-star review
- * proves nothing about the distribution logic.
- *
- * `isVerifiedBorrower` is set from the actual Loan collection rather than
- * invented, so the badge means the same thing in seeded data as in real data.
  */
 const seedEngagement = async ({ users, books }) => {
   logger.info('Seeding reviews, lists and notifications…');
@@ -568,11 +494,6 @@ const seedEngagement = async ({ users, books }) => {
 
   /**
    * REVIEWS FROM ACTUAL BORROWERS FIRST.
-   *
-   * Every (member, book) pair with a real loan gets a review, so the
-   * `isVerifiedBorrower` badge is exercised by genuinely verified data rather
-   * than left to coincidence. It also matches reality: most library reviews
-   * come from people who borrowed the book.
    */
   const allLoans = await Loan.find().select('user book').lean();
   const seenPairs = new Set();
@@ -737,16 +658,10 @@ const runSeed = async () => {
   return context;
 };
 
-/* ===========================================================================
- * Reporting
- * ======================================================================== */
+/* Reporting */
 
 /**
  * Print the demo credentials.
- *
- * The single most useful output of a seed run: a seeded database you cannot
- * log in to is not much use, and hunting for the password in a fixture file is
- * needless friction.
  */
 const printCredentials = (context) => {
   const rows = [
@@ -789,9 +704,7 @@ const printSummary = async () => {
   }
 };
 
-/* ===========================================================================
- * Entry point
- * ======================================================================== */
+/* Entry point */
 
 const main = async () => {
   await connectDatabase();

@@ -1,19 +1,10 @@
 /**
- * ---------------------------------------------------------------------------
- * REVIEW MODEL
- * ---------------------------------------------------------------------------
  * One review per member per book, enforced by a unique compound index rather
- * than an application check — an application check has a race between "does
- * one exist?" and "create it", and the index does not.
+ * than an application check, which would race.
  *
- * `isVerifiedBorrower` is set when the member actually has a loan for the
- * book. It is the single most useful signal on a review: it distinguishes
- * someone who read the thing from someone with an opinion about its cover.
- *
- * Ratings feed a denormalised aggregate on Book, recomputed from scratch after
- * every change rather than adjusted incrementally — an incremental update that
- * misses one path drifts permanently, whereas a recount is self-correcting.
- * ---------------------------------------------------------------------------
+ * `isVerifiedBorrower` distinguishes someone who read the thing from someone
+ * with an opinion about its cover. Ratings feed a denormalised aggregate on
+ * Book, recomputed in full after every change.
  */
 
 import mongoose from 'mongoose';
@@ -69,11 +60,8 @@ const reviewSchema = new Schema(
     },
 
     /**
-     * True when the member has (or had) a loan for this book.
-     *
-     * Computed at write time rather than on read: a review written by a
-     * genuine borrower stays verified even after they return the book, and
-     * recomputing it later would silently strip the badge.
+     * Set at write time, not read time — a genuine borrower stays verified
+     * after returning the book.
      */
     isVerifiedBorrower: { type: Boolean, default: false },
 
@@ -94,17 +82,9 @@ const reviewSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
-/**
- * ONE REVIEW PER MEMBER PER BOOK.
- *
- * Enforced by the database, not by an application check — the latter has a
- * window between "does one exist?" and "create it" that two concurrent
- * requests can both pass through.
- */
+/** Enforced by the database: an application check has a window two concurrent requests can both pass. */
 reviewSchema.index({ user: 1, book: 1 }, { unique: true, name: 'one_review_per_user_per_book' });
 
 /** A book's review list: approved only, most helpful first. */
@@ -113,9 +93,7 @@ reviewSchema.index({ book: 1, status: 1, createdAt: -1 });
 /** The moderation queue: reported or flagged reviews, worst first. */
 reviewSchema.index({ status: 1, reportCount: -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 reviewSchema.virtual('helpfulCount').get(function helpfulCount() {
   return this.helpfulVotes?.length ?? 0;

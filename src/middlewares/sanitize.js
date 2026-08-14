@@ -1,24 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * REQUEST SANITISATION MIDDLEWARE
- * ---------------------------------------------------------------------------
  * Strips MongoDB operator keys (`$gt`), dotted paths (`profile.role`) and
  * prototype-pollution keys (`__proto__`) from incoming request data, before
  * anything downstream can pass them to a query.
- *
- * See src/utils/sanitize.js for why this exists and why it is written by hand
- * rather than pulled from npm — the short version is that Express 5 made
- * `req.query` a getter, which breaks `express-mongo-sanitize` outright.
- *
- * `req.body` and `req.params` are writable and are cleaned IN PLACE.
- * `req.query` is not writable in Express 5, so the cleaned copy is exposed as
- * `req.sanitizedQuery` and the property is redefined to return it — leaving
- * every existing `req.query` reader working, but reading clean data.
- *
- * A stripped key is logged at WARN. Legitimate clients never send `$ne` in a
- * request body, so a hit here is either an attack or a serious bug, and either
- * one is worth knowing about.
- * ---------------------------------------------------------------------------
  */
 
 import { sanitizeInPlace, sanitizeValue } from '../utils/sanitize.js';

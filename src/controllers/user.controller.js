@@ -1,16 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * USER CONTROLLER
- * ---------------------------------------------------------------------------
  * HTTP adapters for /users. All logic lives in user.service.js.
- *
- * Note the consistent use of `forViewer()` when serialising. Which fields a
- * user is shown depends on WHO IS ASKING — a member sees a name and avatar,
- * the account holder sees their own contact details, staff additionally see
- * suspension and audit data. Routing that decision through one function means
- * a handler cannot accidentally publish private data by picking the wrong
- * serialiser.
- * ---------------------------------------------------------------------------
  */
 
 import * as userService from '../services/user.service.js';
@@ -23,9 +12,7 @@ import {
   listForAdmin,
 } from '../serializers/user.serializer.js';
 
-/* ===========================================================================
- * Self-service
- * ======================================================================== */
+/* Self-service */
 
 /** The caller's own profile. */
 export const getMe = asyncHandler(async (req, res) => ok(res, toSelf(req.user), 'Profile fetched'));
@@ -49,16 +36,10 @@ export const deactivateMe = asyncHandler(async (req, res) => {
   return ok(res, null, 'Your account has been closed. Sign in again to reactivate it.');
 });
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 /**
  * One user.
- *
- * `requireOwnerOrStaff` has already rewritten `me` to the caller's real id and
- * confirmed the caller is permitted to look, so this only has to fetch and
- * serialise for the right audience.
  */
 export const getUser = asyncHandler(async (req, res) => {
   const user = await userService.getById(req.params.userId);
@@ -71,9 +52,7 @@ export const listUsers = asyncHandler(async (req, res) => {
   return paginated(res, listForAdmin(items), meta, 'Members fetched');
 });
 
-/* ===========================================================================
- * Administration
- * ======================================================================== */
+/* Administration */
 
 export const changeRole = asyncHandler(async (req, res) => {
   const user = await userService.changeRole(req.params.userId, req.body.role, req.user);

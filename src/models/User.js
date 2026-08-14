@@ -1,25 +1,15 @@
 /**
- * ---------------------------------------------------------------------------
- * USER MODEL
- * ---------------------------------------------------------------------------
- * Everyone in the system: public members, college students, faculty, library
- * staff and administrators.
+ * Everyone in the system: public members, students, faculty, staff, admins.
  *
- * TWO ORTHOGONAL AXES, and keeping them separate is what lets one deployment
- * serve both a public library and a college library:
+ * Two orthogonal axes, and keeping them apart is what lets one deployment serve
+ * both a public and a college library:
  *
- *   role           — what you are ALLOWED TO DO.       MEMBER / LIBRARIAN / ADMIN
- *   membershipType — what BORROWING PRIVILEGES you get. PUBLIC / STUDENT / FACULTY
+ *   role           — what you may DO.                MEMBER / LIBRARIAN / ADMIN
+ *   membershipType — what BORROWING you are granted. PUBLIC / STUDENT / FACULTY
  *
- * A librarian borrows books too, and is subject to their own membership tier
- * while doing so. Collapsing these into one field would force nonsense hybrids
- * like STUDENT_LIBRARIAN and make the policy lookup ambiguous.
- *
- * `studentProfile` is a nested sub-document present only for STUDENT and
- * FACULTY members. Public members simply do not carry those fields rather than
- * carrying them empty — which keeps documents honest and lets a sparse unique
- * index on the enrolment number work correctly.
- * ---------------------------------------------------------------------------
+ * A librarian borrows too, under their own tier. `studentProfile` is present
+ * only for STUDENT and FACULTY — absent, not empty, so the partial unique index
+ * on the enrolment number works.
  */
 
 import mongoose from 'mongoose';
@@ -38,15 +28,9 @@ import { Counter } from './Counter.js';
 
 const { Schema, model } = mongoose;
 
-/* ===========================================================================
- * Sub-schemas
- * ======================================================================== */
+/* Sub-schemas */
 
-/**
- * Academic details, required for STUDENT and FACULTY members.
- * `_id: false` because this is embedded data, not an independently
- * addressable entity — an id here would be noise in every response.
- */
+/** Academic details, required for STUDENT and FACULTY members. */
 const studentProfileSchema = new Schema(
   {
     /** Roll number / registration number. Unique across the institution. */
@@ -95,11 +79,8 @@ const studentProfileSchema = new Schema(
 );
 
 /**
- * Per-type notification preferences.
- *
- * Stored as a Map keyed by NOTIFICATION_TYPE rather than as 18 boolean fields,
- * so adding a new notification type later needs no migration. Absence of a key
- * means "use the default", which is: in-app always on, email on.
+ * Per-type notification preferences, as a Map rather than 18 boolean fields so
+ * a new type needs no migration. A missing key means "use the default".
  */
 const notificationPreferenceSchema = new Schema(
   {
@@ -110,12 +91,8 @@ const notificationPreferenceSchema = new Schema(
 );
 
 /**
- * Denormalised counters, maintained by the circulation service.
- *
- * These are derivable by aggregating Loan and Fine, but the eligibility check
- * runs on EVERY borrow attempt and needs them instantly. Recomputing three
- * aggregations per borrow to avoid three counters is the wrong trade. The
- * numbers are corrected by the nightly job, so drift cannot accumulate.
+ * Denormalised counters. Derivable from Loan and Fine, but the eligibility
+ * check runs on every borrow and needs them instantly. Corrected nightly.
  */
 const statsSchema = new Schema(
   {
@@ -133,9 +110,7 @@ const statsSchema = new Schema(
   { _id: false }
 );
 
-/* ===========================================================================
- * User schema
- * ======================================================================== */
+/* User schema */
 
 const userSchema = new Schema(
   {
@@ -149,11 +124,7 @@ const userSchema = new Schema(
       maxlength: [120, 'Name cannot exceed 120 characters'],
     },
 
-    /**
-     * Login identifier. Lowercased on write so that Alice@x.com and
-     * alice@x.com are the same account — otherwise the unique index lets both
-     * exist and login becomes a coin flip.
-     */
+    /** Lowercased on write, so Alice@x.com and alice@x.com are one account. */
     email: {
       type: String,
       required: [true, 'Email is required'],
@@ -164,11 +135,8 @@ const userSchema = new Schema(
     },
 
     /**
-     * bcrypt hash — never the password itself.
-     *
-     * `select: false` excludes it from every query by default, so a careless
-     * `User.find()` cannot leak hashes into an API response. Login explicitly
-     * opts back in with `.select('+passwordHash')`.
+     * bcrypt hash. `select: false` keeps it out of every query by default;
+     * login opts back in with `.select('+passwordHash')`.
      */
     passwordHash: {
       type: String,
@@ -177,10 +145,8 @@ const userSchema = new Schema(
     },
 
     /**
-     * When the password last changed. Any access token issued BEFORE this
-     * moment is rejected, which is what makes "change password" genuinely log
-     * out every other device — otherwise a stolen token stays valid for its
-     * full 15 minutes after the victim has already reacted.
+     * Any access token issued before this moment is rejected, which is what
+     * makes changing a password log out every other device immediately.
      */
     passwordChangedAt: { type: Date, default: null, select: false },
 
@@ -205,10 +171,7 @@ const userSchema = new Schema(
     /** Present only for STUDENT and FACULTY. Enforced by the hook below. */
     studentProfile: { type: studentProfileSchema, default: undefined },
 
-    /**
-     * Library card number, generated on registration.
-     * Format: LIB-YYYY-NNNNNN, e.g. LIB-2026-000042
-     */
+    /** Library card number, LIB-YYYY-NNNNNN. */
     membershipNumber: {
       type: String,
       unique: true,
@@ -277,9 +240,8 @@ const userSchema = new Schema(
     /* --- Soft delete ---------------------------------------------------- */
 
     /**
-     * Users are NEVER hard-deleted. Loans, fines and reviews reference this
-     * document, and removing it would orphan the library's own circulation
-     * history — which is a permanent record, not the user's to erase.
+     * Never hard-deleted: loans, fines and reviews reference this document and
+     * the circulation history is the library's record, not the user's to erase.
      */
     isDeleted: { type: Boolean, default: false, index: true },
     deletedAt: { type: Date, default: null },
@@ -292,16 +254,12 @@ const userSchema = new Schema(
   }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /**
- * Enrolment numbers must be unique — but only among members who HAVE one.
- * A plain unique index would treat every public member's missing value as
- * `null` and reject the second one, making it impossible to register more than
- * one public member. `partialFilterExpression` restricts the constraint to
- * documents where the field actually exists.
+ * Unique among members who HAVE an enrolment number. A plain unique index would
+ * read every public member's missing value as null and reject the second one;
+ * `partialFilterExpression` restricts the constraint to documents that have it.
  */
 userSchema.index(
   { 'studentProfile.enrollmentNo': 1 },
@@ -322,51 +280,35 @@ userSchema.index({ name: 'text', email: 'text' }, { name: 'user_text_search' });
 /** "Members who owe money" — the fines dashboard. */
 userSchema.index({ 'stats.outstandingFine': -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
-/** True when this member holds a college affiliation. */
 userSchema.virtual('isCollegeMember').get(function isCollegeMember() {
   return COLLEGE_MEMBERSHIP_TYPES.includes(this.membershipType);
 });
 
-/** True when the account may log in and borrow. */
 userSchema.virtual('isActive').get(function isActive() {
   if (this.status !== USER_STATUS.ACTIVE || this.isDeleted) return false;
   if (this.membershipExpiresAt && this.membershipExpiresAt < new Date()) return false;
   return true;
 });
 
-/** True for library staff. */
 userSchema.virtual('isStaff').get(function isStaff() {
   return this.role === ROLES.LIBRARIAN || this.role === ROLES.ADMIN;
 });
 
-/* ===========================================================================
- * Hooks
- * ======================================================================== */
+/* Hooks */
 
 /**
- * Enforce the studentProfile invariant in the MODEL rather than only in the
- * request validator.
- *
- * A validator protects the HTTP boundary. This protects every path — the
- * seeder, an admin bulk update, a script run in a console. An invariant that
- * only holds when data arrives through one door is not an invariant.
+ * Enforced in the model, not just the request validator, so it also holds for
+ * the seeder, bulk updates and console scripts.
  */
 userSchema.pre('validate', function enforceStudentProfile(next) {
   const isCollegeTier = COLLEGE_MEMBERSHIP_TYPES.includes(this.membershipType);
   const needsEnrollment = ENROLLMENT_REQUIRED_MEMBERSHIP_TYPES.includes(this.membershipType);
 
   /**
-   * LIBRARY STAFF ARE EXEMPT.
-   *
-   * `membershipType` describes BORROWING PRIVILEGES, not academic status. A
-   * librarian may be given the STUDENT tier for their own borrowing without
-   * being an enrolled student, and demanding a roll number from them would
-   * make the account impossible to create. The requirement is about patrons,
-   * so it applies to patrons.
+   * Staff are exempt: membershipType describes borrowing privileges, not
+   * academic status, so a librarian on the STUDENT tier needs no roll number.
    */
   const isStaff = this.role === ROLES.LIBRARIAN || this.role === ROLES.ADMIN;
 
@@ -394,16 +336,9 @@ userSchema.pre('validate', function enforceStudentProfile(next) {
 });
 
 /**
- * Generate a library card number for new members.
- *
- * Sequential and human-readable, because the number is read aloud and typed at
- * a physical circulation desk — `LIB-2026-000042` is usable in a way a UUID is
- * not.
- *
- * Allocated through the atomic Counter rather than `countDocuments() + 1`.
- * The counting approach is a read-then-write and collides whenever two
- * registrations run at once — a class signing up together, or a parallel
- * import. See models/Counter.js.
+ * Library card number for new members. Sequential and human-readable because it
+ * is read aloud at a desk. Allocated through the atomic Counter, not
+ * countDocuments() + 1, which collides on concurrent registrations.
  */
 userSchema.pre('save', async function generateMembershipNumber(next) {
   if (this.membershipNumber || !this.isNew) return next();
@@ -418,17 +353,11 @@ userSchema.pre('save', async function generateMembershipNumber(next) {
   }
 });
 
-/* ===========================================================================
- * Instance methods
- * ======================================================================== */
+/* Instance methods */
 
 /**
- * Whether an access token issued at `tokenIssuedAt` is still valid.
- *
- * Returns false for any token minted before the last password change, which is
- * what makes changing a password immediately invalidate sessions everywhere.
- *
- * @param {number} tokenIssuedAtSeconds The JWT `iat` claim, in seconds.
+ * False for any token minted before the last password change — what makes a
+ * password change invalidate sessions everywhere. Takes the JWT `iat`, seconds.
  */
 userSchema.methods.isTokenStillValid = function isTokenStillValid(tokenIssuedAtSeconds) {
   if (!this.passwordChangedAt) return true;
@@ -439,24 +368,16 @@ userSchema.methods.isTokenStillValid = function isTokenStillValid(tokenIssuedAtS
   return tokenIssuedAtSeconds >= changedAtSeconds;
 };
 
-/**
- * Resolve the notification preference for a type, applying defaults for any
- * type the member has never explicitly configured.
- */
+/** Notification preference for a type, applying defaults where unset. */
 userSchema.methods.wantsNotification = function wantsNotification(type, channel) {
   const preference = this.notificationPreferences?.get?.(type);
   if (!preference) return true; // default: everything on
   return preference[channel] !== false;
 };
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
-/**
- * Find an active user by email, WITH the password hash for verification.
- * Used only by the login flow.
- */
+/** Active user by email, WITH the password hash. Login only. */
 userSchema.statics.findForAuthentication = function findForAuthentication(email) {
   return this.findOne({ email: String(email).toLowerCase().trim(), isDeleted: false }).select(
     '+passwordHash +passwordChangedAt'
@@ -464,15 +385,9 @@ userSchema.statics.findForAuthentication = function findForAuthentication(email)
 };
 
 /**
- * Create a user, retrying if the generated membership number was taken.
- *
- * The pre-save hook probes for a free number, but probing cannot be atomic:
- * two concurrent registrations can both find the same candidate free and both
- * try to insert it. The unique index rejects one — and THIS is where that
- * rejection is turned into a retry rather than a failed sign-up.
- *
- * Only a membershipNumber collision is retried. A duplicate email or enrolment
- * number is a genuine conflict the caller must see, so those are rethrown.
+ * Create a user, retrying if the membership number was taken. Only that
+ * collision is retried — a duplicate email or enrolment number is a genuine
+ * conflict the caller must see.
  */
 userSchema.statics.createUnique = async function createUnique(data, maxAttempts = 5) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {

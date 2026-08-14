@@ -1,19 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * MACHINE-READABLE ERROR CODES
- * ---------------------------------------------------------------------------
  * Every failure response carries a stable `code` alongside its human message:
- *
- *     { "success": false, "message": "No copies available",
- *       "code": "NO_COPY_AVAILABLE", "requestId": "0f3a…" }
- *
- * The message is for people and may be reworded at any time. The CODE is the
- * contract a client programs against — so a frontend can branch on
- * NO_COPY_AVAILABLE without string-matching English prose, and so error rates
- * can be grouped meaningfully in logs.
- *
- * Codes are grouped by domain and never reused or renamed once shipped.
- * ---------------------------------------------------------------------------
  */
 
 export const ERROR_CODES = Object.freeze({

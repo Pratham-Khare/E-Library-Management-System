@@ -1,26 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * AI QUOTA GUARD
- * ---------------------------------------------------------------------------
  * Decides whether a live API call may be made.
- *
- * The token allows 100 calls IN TOTAL, for its lifetime. Three checks stand
- * between a request and a spent call:
- *
- *   1. IS THERE A USABLE TOKEN? A missing or placeholder token means no live
- *      call is possible at all.
- *   2. IS THE GLOBAL BUDGET SPENT? Counted from AiUsageLog and reconciled
- *      against the provider's own usage endpoint, with a SAFETY MARGIN so the
- *      last few calls are held in reserve rather than consumed by whoever
- *      happens to click next.
- *   3. HAS THIS MEMBER USED THEIR DAILY SHARE? Without a per-user cap, one
- *      curious member clicking "summarise" repeatedly exhausts the shared
- *      budget for everyone, permanently.
- *
- * When a live call is refused, this returns WHY — so the caller can decide
- * between serving mock content and reporting an error, rather than being told
- * only that something went wrong.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../../config/index.js';
@@ -29,10 +8,6 @@ import { AiUsageLog } from '../../models/AiUsageLog.js';
 
 /**
  * Cached view of the provider's own usage figures.
- *
- * Reconciled by a cron job rather than fetched per request — asking the
- * provider "how much is left?" before every call would itself be traffic, and
- * the number changes only when we spend one.
  */
 let upstreamUsage = { used: null, limit: null, remaining: null, fetchedAt: null };
 
@@ -48,10 +23,6 @@ export const getUpstreamUsage = () => ({ ...upstreamUsage });
 
 /**
  * Latch recording that the provider rejected our token.
- *
- * Set on the first 401, cleared by a successful usage reconciliation. Without
- * it, every AI request would pay a full network round-trip and a retry cycle
- * to rediscover a fact that will not change until the key does.
  */
 let tokenRejected = { at: null, message: null };
 
@@ -71,11 +42,6 @@ export const clearTokenRejection = () => {
 
 /**
  * How many live calls remain.
- *
- * Takes the LOWER of the local count and the provider's own figure. They can
- * disagree — another deployment might share this token, or a call might have
- * failed after being counted upstream — and in a disagreement about a finite
- * budget the pessimistic number is the safe one.
  */
 export const getRemaining = async () => {
   const localUsed = await AiUsageLog.liveCallCount();
@@ -94,12 +60,6 @@ export const getRemaining = async () => {
 
 /**
  * May a live call be made right now?
- *
- * Returns a decision object rather than throwing, because "no" is frequently
- * the normal path — it means "serve mock content", not "fail the request".
- *
- * @param {string|null} userId Null for system-initiated generation.
- * @returns {Promise<{allowed: boolean, reason?: string, code?: string, remaining: number}>}
  */
 export const canMakeLiveCall = async (userId = null) => {
   /* 1. A usable token. */
@@ -114,11 +74,6 @@ export const canMakeLiveCall = async (userId = null) => {
 
   /**
    * The provider has already rejected this token.
-   *
-   * A rejected token will keep being rejected, so retrying costs a full
-   * network round-trip plus a retry cycle to rediscover the same fact — on
-   * every single request. Latching it means the first failure is the only
-   * slow one; everything after goes straight to mock.
    */
   if (tokenRejected.at !== null) {
     return {
@@ -176,12 +131,6 @@ export const canMakeLiveCall = async (userId = null) => {
 
 /**
  * Record an AI request — live, cached OR mock.
- *
- * Logging the free ones matters: without them there is no way to show how much
- * the cache saved, which is the number that justifies the entire design.
- *
- * Never throws. A failure to write a usage row must not fail the request that
- * successfully produced a summary.
  */
 export const recordUsage = async ({
   user = null,

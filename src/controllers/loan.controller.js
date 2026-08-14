@@ -1,13 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * LOAN CONTROLLER
- * ---------------------------------------------------------------------------
  * Self-service borrowing for members, and the circulation desk for staff.
- *
- * The two paths differ in WHO the loan belongs to, not in the rules applied:
- * a librarian issuing a book on someone's behalf runs the same eligibility
- * checks. Staff can override the due date; they cannot override the limits.
- * ---------------------------------------------------------------------------
  */
 
 import * as loanService from '../services/loan.service.js';
@@ -21,9 +13,7 @@ import { LOAN_TYPE } from '../constants/enums.js';
 
 const isStaff = (user) => Boolean(user) && ['LIBRARIAN', 'ADMIN'].includes(user.role);
 
-/* ===========================================================================
- * Borrowing
- * ======================================================================== */
+/* Borrowing */
 
 /** Borrow for yourself. */
 export const borrow = asyncHandler(async (req, res) => {
@@ -45,10 +35,6 @@ export const borrow = asyncHandler(async (req, res) => {
 
 /**
  * Circulation desk: issue on behalf of a member.
- *
- * Runs the SAME eligibility checks as self-service. A librarian may set a
- * different due date, but cannot bypass loan limits, overdue blocks or fine
- * thresholds — those are library policy, not a desk preference.
  */
 export const issue = asyncHandler(async (req, res) => {
   const { bookId, userId, type, dueAt, note } = req.body;
@@ -76,15 +62,10 @@ export const issue = asyncHandler(async (req, res) => {
   );
 });
 
-/* ===========================================================================
- * Returning
- * ======================================================================== */
+/* Returning */
 
 /**
  * Return a book.
- *
- * Members may return their own; staff may return anyone's — which is the
- * normal case, since returns happen at a desk.
  */
 export const returnLoan = asyncHandler(async (req, res) => {
   const loan = await loanService.getById(req.params.loanId);
@@ -120,9 +101,7 @@ export const returnLoan = asyncHandler(async (req, res) => {
   );
 });
 
-/* ===========================================================================
- * Renewing
- * ======================================================================== */
+/* Renewing */
 
 export const renew = asyncHandler(async (req, res) => {
   const loan = await loanService.getById(req.params.loanId);
@@ -148,9 +127,7 @@ export const renew = asyncHandler(async (req, res) => {
   );
 });
 
-/* ===========================================================================
- * Lost items
- * ======================================================================== */
+/* Lost items */
 
 export const markLost = asyncHandler(async (req, res) => {
   const { loan, fine } = await loanService.markLost(req.params.loanId, {
@@ -165,9 +142,7 @@ export const markLost = asyncHandler(async (req, res) => {
   );
 });
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 /** The caller's own loans. */
 export const myLoans = asyncHandler(async (req, res) => {
@@ -195,10 +170,6 @@ export const getLoan = asyncHandler(async (req, res) => {
 
 /**
  * Can the caller borrow right now, and if not, why?
- *
- * Lets a client disable a "Borrow" button with an accurate explanation instead
- * of letting the member click it and receive an error. The eligibility rules
- * live in one place and are simply queried here.
  */
 export const checkEligibility = asyncHandler(async (req, res) => {
   try {

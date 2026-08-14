@@ -40,9 +40,7 @@ export const apis = Object.freeze([
   toGlob('src/models/*.js'),
 ]);
 
-/* ===========================================================================
- * Reusable components
- * ======================================================================== */
+/* Reusable components */
 
 const securitySchemes = {
   bearerAuth: {
@@ -172,9 +170,7 @@ const responses = {
   },
 };
 
-/* ===========================================================================
- * Tag groups — the sidebar ordering in Swagger UI
- * ======================================================================== */
+/* Tag groups — the sidebar ordering in Swagger UI */
 
 const tags = [
   { name: 'Health', description: 'Liveness and readiness probes.' },
@@ -196,9 +192,7 @@ const tags = [
   { name: 'Admin', description: 'Analytics, bulk operations and the audit log.' },
 ];
 
-/* ===========================================================================
- * The document
- * ======================================================================== */
+/* The document */
 
 export const definition = {
   openapi: '3.0.3',

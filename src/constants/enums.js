@@ -1,22 +1,10 @@
 /**
- * ---------------------------------------------------------------------------
- * DOMAIN ENUMERATIONS
- * ---------------------------------------------------------------------------
  * Every fixed value set used by the Mongoose schemas lives here, in one place,
  * so that a schema, a validator and a service can never drift apart on what
  * counts as a valid status.
- *
- * Each enum exports both the object (for readable references such as
- * LOAN_STATUS.OVERDUE) and a frozen `_VALUES` array (for `enum:` in a schema
- * and `z.enum()` in a validator).
- *
- * Roles, membership types and user status live in ./roles.js.
- * ---------------------------------------------------------------------------
  */
 
-/* ===========================================================================
- * CATALOGUE
- * ======================================================================== */
+/* CATALOGUE */
 
 /**
  * Whether a book is visible and borrowable.
@@ -35,10 +23,6 @@ export const BOOK_STATUS_VALUES = Object.freeze(Object.values(BOOK_STATUS));
 
 /**
  * The lifecycle of a single physical copy on the shelf.
- *
- * AVAILABLE -> ON_LOAN is the compare-and-swap that makes borrowing safe under
- * concurrency: the claim is a single atomic findOneAndUpdate filtered on
- * `status: AVAILABLE`, so two simultaneous requests cannot both win.
  */
 export const COPY_STATUS = Object.freeze({
   /** On the shelf, ready to be borrowed. */
@@ -66,9 +50,7 @@ export const COPY_CONDITION = Object.freeze({
 });
 export const COPY_CONDITION_VALUES = Object.freeze(Object.values(COPY_CONDITION));
 
-/* ===========================================================================
- * DIGITAL ASSETS
- * ======================================================================== */
+/* DIGITAL ASSETS */
 
 /** Ebook file formats the system accepts. */
 export const EBOOK_FORMAT = Object.freeze({
@@ -91,9 +73,7 @@ export const EXTRACTION_STATUS = Object.freeze({
 });
 export const EXTRACTION_STATUS_VALUES = Object.freeze(Object.values(EXTRACTION_STATUS));
 
-/* ===========================================================================
- * CIRCULATION
- * ======================================================================== */
+/* CIRCULATION */
 
 /** Physical (a copy leaves the shelf) vs digital (a licence is consumed). */
 export const LOAN_TYPE = Object.freeze({
@@ -104,12 +84,6 @@ export const LOAN_TYPE_VALUES = Object.freeze(Object.values(LOAN_TYPE));
 
 /**
  * Loan lifecycle.
- *
- *   ACTIVE ──(returned in time)──> RETURNED
- *     │
- *     ├──(due date passes, cron)──> OVERDUE ──(returned)──> RETURNED (+ fine)
- *     ├──(staff marks lost)───────> LOST (+ replacement fine)
- *     └──(digital term elapses)───> EXPIRED
  */
 export const LOAN_STATUS = Object.freeze({
   /** Out with the borrower, not yet past due. */
@@ -135,9 +109,7 @@ export const CLOSED_LOAN_STATUSES = Object.freeze([
   LOAN_STATUS.EXPIRED,
 ]);
 
-/* ===========================================================================
- * FINES
- * ======================================================================== */
+/* FINES */
 
 /** Why a fine was raised. */
 export const FINE_REASON = Object.freeze({
@@ -166,9 +138,7 @@ export const FINE_STATUS = Object.freeze({
 });
 export const FINE_STATUS_VALUES = Object.freeze(Object.values(FINE_STATUS));
 
-/* ===========================================================================
- * REVIEWS
- * ======================================================================== */
+/* REVIEWS */
 
 /** Moderation state. Only APPROVED reviews are publicly visible and counted. */
 export const REVIEW_STATUS = Object.freeze({
@@ -193,9 +163,7 @@ export const MODERATION_VERDICT = Object.freeze({
 });
 export const MODERATION_VERDICT_VALUES = Object.freeze(Object.values(MODERATION_VERDICT));
 
-/* ===========================================================================
- * READING LISTS
- * ======================================================================== */
+/* READING LISTS */
 
 /**
  * The four default shelves are created automatically for every new member;
@@ -218,9 +186,7 @@ export const DEFAULT_READING_LISTS = Object.freeze([
   { type: READING_LIST_TYPE.FINISHED, name: 'Finished' },
 ]);
 
-/* ===========================================================================
- * NOTIFICATIONS
- * ======================================================================== */
+/* NOTIFICATIONS */
 
 /**
  * Every notification the system can raise. Members can mute any of these
@@ -267,9 +233,7 @@ export const DELIVERY_STATUS = Object.freeze({
 });
 export const DELIVERY_STATUS_VALUES = Object.freeze(Object.values(DELIVERY_STATUS));
 
-/* ===========================================================================
- * AI
- * ======================================================================== */
+/* AI */
 
 /** The kinds of generated content cached in the AiSummary collection. */
 export const AI_SUMMARY_KIND = Object.freeze({
@@ -322,9 +286,7 @@ export const AI_SOURCE = Object.freeze({
 });
 export const AI_SOURCE_VALUES = Object.freeze(Object.values(AI_SOURCE));
 
-/* ===========================================================================
- * AUDIT LOG
- * ======================================================================== */
+/* AUDIT LOG */
 
 /** Entities whose mutations are recorded in the audit log. */
 export const AUDIT_ENTITY = Object.freeze({
@@ -366,9 +328,7 @@ export const AUDIT_ACTION = Object.freeze({
 });
 export const AUDIT_ACTION_VALUES = Object.freeze(Object.values(AUDIT_ACTION));
 
-/* ===========================================================================
- * SHARED
- * ======================================================================== */
+/* SHARED */
 
 /** Sort directions accepted by list endpoints. */
 export const SORT_ORDER = Object.freeze({ ASC: 'asc', DESC: 'desc' });

@@ -1,20 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * SEED DATA — USERS
- * ---------------------------------------------------------------------------
  * Eleven accounts spanning every role and membership tier, so each borrowing
  * policy and permission boundary can be exercised without creating accounts by
  * hand first.
- *
- * PASSWORDS ARE FIXED AND PRINTED at the end of a seed run. That is a
- * deliberate development convenience, not an oversight — a seeded database is
- * useless if you cannot log in to it. `npm run seed` refuses to run when
- * NODE_ENV=production for exactly this reason.
- *
- * Every password follows the real policy (8+ chars, upper, lower, digit), so
- * these accounts are created through the same validation path as a genuine
- * registration rather than bypassing it.
- * ---------------------------------------------------------------------------
  */
 
 import { ROLES, MEMBERSHIP_TYPES, USER_STATUS } from '../../constants/roles.js';

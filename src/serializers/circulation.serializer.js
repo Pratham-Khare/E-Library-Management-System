@@ -1,15 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
  * CIRCULATION SERIALIZERS — loans and fines
- * ---------------------------------------------------------------------------
  * Loan responses carry COMPUTED time fields — `daysRemaining`, `daysOverdue`,
  * `isOverdue` — rather than leaving a client to derive them from `dueAt`.
- *
- * That is deliberate. Date arithmetic done on the client uses the DEVICE's
- * clock and timezone, so a phone set a day fast would show a book as overdue
- * when the library does not consider it so. The server owns the definition of
- * "late", because the server is what charges the fine.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -33,9 +25,7 @@ const dayDiff = (from, to) => {
   );
 };
 
-/* ===========================================================================
- * Loans
- * ======================================================================== */
+/* Loans */
 
 export const toLoan = (loan, { includeUser = false } = {}) => {
   if (!loan) return null;
@@ -117,10 +107,6 @@ export const listLoans = (loans, options) => (loans ?? []).map((loan) => toLoan(
 
 /**
  * A borrow response.
- *
- * Includes what the member can do NEXT — how many renewals remain, how many
- * more items they may take — so a client can render accurate affordances
- * without a second request or a hard-coded copy of the policy.
  */
 export const toBorrowResponse = ({ loan, copy, book, policy }, user) => ({
   loan: toLoan(loan),
@@ -139,9 +125,7 @@ export const toBorrowResponse = ({ loan, copy, book, policy }, user) => ({
     : {}),
 });
 
-/* ===========================================================================
- * Fines
- * ======================================================================== */
+/* Fines */
 
 export const toFine = (fine, { includeUser = false } = {}) => {
   if (!fine) return null;
@@ -156,10 +140,6 @@ export const toFine = (fine, { includeUser = false } = {}) => {
 
     /**
      * The arithmetic behind the number.
-     *
-     * Included so a member disputing a charge can be shown "12 days late,
-     * 2 forgiven as grace, 10 × ₹5 = ₹50" rather than an unexplained total.
-     * A fine nobody can explain is a fine nobody can defend.
      */
     calculation: fine.daysOverdue
       ? {

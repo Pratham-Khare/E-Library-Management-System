@@ -1,21 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * SEED DATA — CATALOGUE
- * ---------------------------------------------------------------------------
  * Real books with genuine ISBNs, so the check-digit validation is exercised by
  * the seed rather than merely by hand-written tests — if the ISBN logic were
  * wrong, seeding would fail loudly.
- *
- * The category tree is deliberately several levels deep. A flat list would
- * never exercise the materialised ancestor path, and "browsing Science finds a
- * machine-learning textbook four levels down" is only testable if such a book
- * actually exists.
- *
- * Copy counts vary on purpose: some titles have several copies, a few have
- * exactly one (so the concurrency test has something to contend over), and one
- * has none at all (so `NO_COPY_AVAILABLE` is reachable without borrowing
- * anything first).
- * ---------------------------------------------------------------------------
  */
 
 export const authors = [
@@ -89,13 +75,6 @@ export const categoryTree = [
 
 /**
  * Books.
- *
- * `authorNames`, `publisherName` and `categoryNames` are resolved to real ids
- * by the seeder — fixtures reference things by name so they stay readable and
- * do not depend on insertion order.
- *
- * `copies` drives how many BookCopy documents are created. The deliberate
- * spread of values is what makes the circulation tests meaningful.
  */
 export const books = [
   {

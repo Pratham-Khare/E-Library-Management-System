@@ -1,20 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
  * AUTHENTICATION ROUTES  —  /api/v1/auth
- * ---------------------------------------------------------------------------
  * Every route reads as a declaration of its own security posture:
- *
- *     router.post('/login', rateLimiter('auth'), validate({ body: loginSchema }), login);
- *              └ path      └ throttled          └ input whitelisted            └ handler
- *
- * The `auth` rate limiter guards every unauthenticated endpoint here. These are
- * the routes an attacker points a stolen credential list at, and the limiter is
- * configured to count only FAILED attempts — so a legitimately busy user is
- * never locked out, while a stuffing attack burns its budget immediately.
- *
- * OpenAPI documentation lives inline, three lines above the handler it
- * describes, which is the only arrangement that reliably stays accurate.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';

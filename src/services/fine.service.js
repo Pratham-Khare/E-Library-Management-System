@@ -1,15 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * FINE SERVICE
- * ---------------------------------------------------------------------------
  * Settling, waiving and reporting on charges.
- *
- * Every state change here recomputes the member's cached outstanding total
- * from the Fine collection rather than adjusting it by the amount involved.
- * That cached number gates borrowing, so it being wrong means either blocking
- * someone who owes nothing or letting someone borrow who owes a fortune —
- * and a recompute is self-correcting where an increment drifts.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -90,10 +80,6 @@ export const listAll = async (query = {}) => {
 
 /**
  * Record payment of a fine.
- *
- * No payment gateway is integrated — this records that money changed hands at
- * the desk, which is how library fines are actually settled. `paymentReference`
- * carries the receipt number from whatever did handle it.
  */
 export const markPaid = async (fineId, { collectedBy, paymentMethod = 'CASH', paymentReference = null }) => {
   const fine = await Fine.findById(fineId);
@@ -130,12 +116,6 @@ export const markPaid = async (fineId, { collectedBy, paymentMethod = 'CASH', pa
 
 /**
  * Forgive a fine.
- *
- * The NOTE IS MANDATORY, and that is not bureaucracy: a waiver is staff
- * writing off money the library was owed. Without a recorded reason it is
- * indistinguishable from a mistake or a favour, and there is no way to answer
- * "why was this cancelled?" six months later. The audit log records who did it;
- * the note records why.
  */
 export const waive = async (fineId, { waivedBy, note }) => {
   if (!note || note.trim().length < 5) {
@@ -202,10 +182,6 @@ export const createManual = async ({ userId, bookId, loanId, reason, amount, des
 
 /**
  * Fine totals for a period, for the admin dashboard.
- *
- * One `$facet` pass rather than three separate aggregations over the same
- * collection — and the three figures cannot disagree with each other, which
- * they could if a write landed between separate queries.
  */
 export const getSummary = async ({ from, to } = {}) => {
   const match = {};

@@ -1,7 +1,4 @@
 /**
- * ---------------------------------------------------------------------------
- * AUDIT LOG
- * ---------------------------------------------------------------------------
  * A record of every privileged mutation: who did what, to which record, and
  * what changed.
  *
@@ -13,7 +10,6 @@
  *
  * Writes here are best-effort and never block the operation being audited. An
  * audit failure must not prevent a librarian from returning a book.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -67,8 +63,6 @@ auditLogSchema.index({ createdAt: -1 });
 /**
  * Compute the diff between two objects, keeping only what changed.
  *
- * @param {object} before
- * @param {object} after
  * @param {string[]} [fields] Restrict to these fields.
  */
 auditLogSchema.statics.diff = function diff(before = {}, after = {}, fields = null) {

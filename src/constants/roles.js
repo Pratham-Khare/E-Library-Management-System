@@ -1,18 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * ROLES & MEMBERSHIP TYPES
- * ---------------------------------------------------------------------------
  * Two orthogonal axes describe a person in this system, and keeping them
  * separate is what lets one deployment serve both a public library and a
  * college library:
- *
- *   ROLE            — what you are ALLOWED TO DO (authorisation).
- *   MEMBERSHIP_TYPE — what BORROWING PRIVILEGES you get (policy).
- *
- * A librarian is a member too: they have role LIBRARIAN for the permissions,
- * and a membershipType for their own borrowing limits. Collapsing these into a
- * single "role" field would force awkward hybrids like STUDENT_LIBRARIAN.
- * ---------------------------------------------------------------------------
  */
 
 /**
@@ -78,13 +67,6 @@ export const COLLEGE_MEMBERSHIP_TYPES = Object.freeze([
 
 /**
  * Membership types for which an enrolment number is MANDATORY.
- *
- * Students only. A roll number is what identifies a student to their
- * institution, so requiring it is meaningful. Faculty are staff — many have an
- * employee ID and may record it here, but demanding one produces awkward
- * failures for no benefit: a FACULTY-tier administrator being demoted to
- * MEMBER would suddenly become invalid, blocking a legitimate role change on a
- * field nobody intended to require of them.
  */
 export const ENROLLMENT_REQUIRED_MEMBERSHIP_TYPES = Object.freeze([MEMBERSHIP_TYPES.STUDENT]);
 

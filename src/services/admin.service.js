@@ -1,16 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * ADMIN SERVICE — analytics, audit log and bulk operations
- * ---------------------------------------------------------------------------
  * Every dashboard figure is computed by AGGREGATION IN THE DATABASE, not by
  * fetching documents and reducing them in JavaScript. On a library with years
  * of circulation history the difference is between a query and an outage.
- *
- * The dashboard uses `$facet` so a dozen figures come back in ONE pass. As
- * well as being faster, it makes the numbers mutually CONSISTENT: separate
- * queries could each see a different moment, and a dashboard whose totals do
- * not add up is worse than no dashboard.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -34,16 +26,10 @@ import { LOAN_STATUS, OPEN_LOAN_STATUSES, FINE_STATUS, BOOK_STATUS } from '../co
 import { parsePagination, paginateQuery } from '../utils/pagination.js';
 import { parseIsbn } from '../utils/isbn.js';
 
-/* ===========================================================================
- * Audit log
- * ======================================================================== */
+/* Audit log */
 
 /**
  * Record a privileged action.
- *
- * NEVER THROWS. An audit write must not prevent a librarian from returning a
- * book — the operation is the point, the record is the courtesy. A failure is
- * logged so the gap itself is visible.
  */
 export const audit = async ({ actor, action, entity, entityId, entityLabel, changes, note, req }) => {
   try {
@@ -91,15 +77,10 @@ export const listAuditLog = async (query = {}) => {
   });
 };
 
-/* ===========================================================================
- * Dashboard
- * ======================================================================== */
+/* Dashboard */
 
 /**
  * The headline dashboard.
- *
- * Runs several independent aggregations CONCURRENTLY — they touch different
- * collections and have no reason to wait for one another.
  */
 export const getDashboard = async ({ days = 30 } = {}) => {
   const since = new Date(Date.now() - days * 86_400_000);
@@ -155,10 +136,6 @@ export const getDashboard = async ({ days = 30 } = {}) => {
           ],
           /**
            * Average loan duration, in days.
-           *
-           * Computed only over CLOSED loans — including open ones would count
-           * a book borrowed this morning as a zero-day loan and drag the
-           * average toward meaninglessness.
            */
           averageDuration: [
             { $match: { returnedAt: { $ne: null } } },
@@ -326,9 +303,7 @@ export const getDashboard = async ({ days = 30 } = {}) => {
   };
 };
 
-/* ===========================================================================
- * Reports
- * ======================================================================== */
+/* Reports */
 
 /** Most-borrowed titles over a period. */
 export const getPopularBooks = async ({ days = 90, limit = 20 } = {}) => {
@@ -367,10 +342,6 @@ export const getPopularBooks = async ({ days = 90, limit = 20 } = {}) => {
 
 /**
  * Books nobody borrows.
- *
- * The report that actually changes acquisition decisions: shelf space spent on
- * titles that have not moved. Deliberately excludes recently added books,
- * which have not had a fair chance yet.
  */
 export const getUnborrowedBooks = async ({ limit = 20, minAgeDays = 90 } = {}) => {
   const cutoff = new Date(Date.now() - minAgeDays * 86_400_000);
@@ -437,28 +408,12 @@ export const getInventoryHealth = async () => {
   };
 };
 
-/* ===========================================================================
- * CSV bulk import
- * ======================================================================== */
+/* CSV bulk import */
 
 const REQUIRED_CSV_COLUMNS = ['title'];
 
 /**
  * Import books from CSV.
- *
- * TWO PROPERTIES THAT MATTER:
- *
- *   DRY RUN — `dryRun: true` validates every row and reports what WOULD happen
- *   without writing anything. Importing 800 books and discovering row 400 was
- *   malformed is a bad afternoon; finding out first is a good one.
- *
- *   PER-ROW ISOLATION — one bad row is reported and skipped, not fatal. An
- *   all-or-nothing import of a hand-maintained spreadsheet almost never
- *   succeeds, and rejecting 799 good rows over one typo helps nobody.
- *
- * Authors, publishers and categories are matched by NAME and created when
- * missing, because a spreadsheet from an acquisitions supplier contains names,
- * not ObjectIds.
  */
 export const importBooksFromCsv = async (csvContent, { dryRun = false } = {}, actor) => {
   let rows;

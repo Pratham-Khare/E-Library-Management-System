@@ -1,15 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * SHARED VALIDATION SCHEMAS
- * ---------------------------------------------------------------------------
  * Zod building blocks reused across every resource, so that "what is a valid
  * id" or "how does pagination work" is answered once rather than per file.
- *
- * Query-string schemas do real coercion work here. Every query value arrives as
- * a string, so `?page=2&available=true` gives `'2'` and `'true'`. These schemas
- * turn them into a number and a boolean before any handler sees them, which is
- * why no controller in this codebase contains a `parseInt`.
- * ---------------------------------------------------------------------------
  */
 
 import { z } from 'zod';
@@ -17,17 +8,10 @@ import mongoose from 'mongoose';
 import config from '../config/index.js';
 import { SORT_ORDER_VALUES } from '../constants/enums.js';
 
-/* ===========================================================================
- * Identifiers
- * ======================================================================== */
+/* Identifiers */
 
 /**
  * A MongoDB ObjectId.
- *
- * Uses the driver's own validator rather than a 24-hex-character regex.
- * `isValid` accepts a 12-byte string too, and more importantly it is the exact
- * check Mongoose will apply later — a regex that disagrees with it produces
- * confusing "valid here, CastError there" behaviour.
  */
 export const objectId = z
   .string()
@@ -49,9 +33,7 @@ export const objectIdList = z
   .transform((value) => (Array.isArray(value) ? value : value.split(',')))
   .pipe(z.array(objectId).max(50, 'Cannot filter on more than 50 IDs at once'));
 
-/* ===========================================================================
- * Primitives
- * ======================================================================== */
+/* Primitives */
 
 /**
  * Email. Lowercased and trimmed so that Alice@X.com and alice@x.com resolve to
@@ -130,16 +112,10 @@ export const year = z.coerce
   .min(1000, 'Year seems too early')
   .max(new Date().getFullYear() + 1, 'Year cannot be in the future');
 
-/* ===========================================================================
- * Pagination & sorting
- * ======================================================================== */
+/* Pagination & sorting */
 
 /**
  * Standard pagination query.
- *
- * `limit` is CAPPED, not merely defaulted. Without the ceiling,
- * `?limit=999999` loads an entire collection into memory and serialises it —
- * a denial of service that is as likely to happen by accident as on purpose.
  */
 export const paginationQuery = z.object({
   page: z.coerce.number().int().min(1).default(config.pagination.defaultPage),
@@ -167,17 +143,10 @@ export const listQuery = paginationQuery.merge(sortQuery);
  */
 export const withListQuery = (shape) => listQuery.extend(shape);
 
-/* ===========================================================================
- * Search
- * ======================================================================== */
+/* Search */
 
 /**
  * A free-text search term.
- *
- * Length-capped because the fuzzy fallback builds a RegExp from this value,
- * and an enormous or adversarial pattern can pin a CPU core for minutes
- * (catastrophic backtracking). utils/sanitize.js escapes the metacharacters;
- * this bounds the size.
  */
 export const searchTerm = z
   .string()

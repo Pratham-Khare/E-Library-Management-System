@@ -1,16 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * BOOK ROUTES  —  /api/v1/books
- * ---------------------------------------------------------------------------
  * Reading the catalogue is PUBLIC — a library catalogue that requires an
  * account to browse defeats the purpose. `optionalAuthenticate` still runs on
  * read routes so a signed-in staff member sees archived titles and per-copy
- * borrower details, while an anonymous visitor sees the public view.
- *
- * Writing requires staff. As always, literal segments (`/feeds/...`) are
- * declared before the `/:bookId` pattern, or `feeds` would be matched as a
- * book identifier.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -80,9 +72,7 @@ const router = Router();
  *             canBorrowNow: { type: boolean, example: true }
  */
 
-/* ===========================================================================
- * Discovery feeds — declared before /:bookId
- * ======================================================================== */
+/* Discovery feeds — declared before /:bookId */
 
 /**
  * @openapi
@@ -116,9 +106,7 @@ router.get(
   bookController.getFeed
 );
 
-/* ===========================================================================
- * Catalogue
- * ======================================================================== */
+/* Catalogue */
 
 /**
  * @openapi
@@ -308,9 +296,7 @@ router.get(
   bookController.getSimilarBooks
 );
 
-/* ===========================================================================
- * Copies
- * ======================================================================== */
+/* Copies */
 
 /**
  * @openapi

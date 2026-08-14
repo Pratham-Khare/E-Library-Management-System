@@ -1,27 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * AI SERVICE
- * ---------------------------------------------------------------------------
  * Every AI feature follows the SAME three-step fallback, and understanding it
  * explains the whole subsystem:
- *
- *      1. CACHE   — already generated? Return it. Costs nothing.
- *              ↓ miss
- *      2. LIVE    — token present, budget available, member under their cap?
- *                   Call the model. Costs one of 100.
- *              ↓ not possible
- *      3. MOCK    — generate deterministic offline content, clearly labelled.
- *                   Costs nothing.
- *
- * Step 1 is what makes the feature affordable: a book's summary costs one call
- * EVER, no matter how many members read it. Step 3 is what makes it robust:
- * no token, a rejected token, or an exhausted budget degrades the response
- * instead of breaking the endpoint.
- *
- * Every response reports which step produced it. Mock content is never
- * presented as genuine model output — a system that silently fabricates is
- * worse than one that admits the model was unavailable.
- * ---------------------------------------------------------------------------
  */
 
 import crypto from 'node:crypto';
@@ -47,9 +26,7 @@ import * as quotaGuard from '../integrations/ai/quotaGuard.js';
 import * as mock from '../integrations/ai/mockProvider.js';
 import prompts, { parseJsonResponse, hasSufficientContext } from '../integrations/ai/prompts/index.js';
 
-/* ===========================================================================
- * Helpers
- * ======================================================================== */
+/* Helpers */
 
 /** Load a book with everything the prompts need. */
 const loadBook = async (bookId) => {
@@ -63,9 +40,6 @@ const loadBook = async (bookId) => {
 
 /**
  * Extracted ebook text, when available.
- *
- * Summarising an actual chapter produces a far better result than summarising
- * a two-line blurb — this is the payoff for the extraction work done at upload.
  */
 const loadExtractedText = async (bookId) => {
   const asset = await DigitalAsset.findOne({
@@ -81,10 +55,6 @@ const loadExtractedText = async (bookId) => {
 
 /**
  * Fingerprint of the source material.
- *
- * Lets a stale summary be spotted: if a librarian rewrites a description, the
- * hash no longer matches and the cached summary can be flagged for
- * regeneration rather than silently describing text that no longer exists.
  */
 const hashInput = (book, extractedText) =>
   crypto
@@ -94,10 +64,6 @@ const hashInput = (book, extractedText) =>
 
 /**
  * Normalise a question before hashing it for the cache.
- *
- * "What is the main theme?" and "what is the main theme" are the same
- * question. Without normalisation the cache would miss and the second asker
- * would spend a second call on an identical answer.
  */
 const hashQuestion = (question) =>
   crypto
@@ -121,27 +87,10 @@ const assertFeatureEnabled = (feature) => {
   }
 };
 
-/* ===========================================================================
- * The core generation flow
- * ======================================================================== */
+/* The core generation flow */
 
 /**
  * Cache → live → mock, in one place.
- *
- * Every AI feature routes through this, so the fallback behaviour, the usage
- * accounting and the honesty about provenance are identical everywhere rather
- * than reimplemented (and eventually diverging) per feature.
- *
- * @param {object} params
- * @param {string} params.feature An AI_FEATURE value.
- * @param {object} params.book
- * @param {object|null} params.user
- * @param {() => Promise<object|null>} params.findCached
- * @param {() => object} params.buildPrompt
- * @param {(parsed: object) => any} params.parseLive Extract content from the model's JSON.
- * @param {() => any} params.buildMock
- * @param {(content: any, meta: object) => Promise<object>} [params.persist]
- * @param {boolean} [params.requireContext] Refuse when there is too little source material.
  */
 const generate = async ({
   feature,
@@ -183,11 +132,6 @@ const generate = async ({
         isMock: cached.isMock,
         /**
          * The notice travels with CACHED mock content too.
-         *
-         * Without this, the first request warned that the content was not
-         * model-generated and every subsequent one silently dropped the
-         * caveat — which is exactly backwards, since the cached response is
-         * the one most people will see.
          */
         ...(cached.isMock
           ? {
@@ -207,7 +151,6 @@ const generate = async ({
    * "the provider rejected our token" reaches `shouldMock()` as
    * `tokenRejected` rather than being lost — without which AI_MOCK_MODE=auto
    * would throw on an invalid token instead of degrading, which is precisely
-   * the case mock mode exists for.
    */
   const liveFailure = { tokenRejected: false, quotaExhausted: false };
 
@@ -282,11 +225,6 @@ const generate = async ({
 
       /**
        * A LIVE FAILURE FALLS THROUGH TO MOCK rather than failing the request.
-       *
-       * The member asked for a summary. "The upstream returned 502" is not a
-       * useful answer when we can produce something honest and labelled
-       * instead. Under AI_MOCK_MODE=never this rethrows, which is the correct
-       * production posture.
        */
       if (config.ai.mock.neverMock) throw error;
 
@@ -359,17 +297,10 @@ const generate = async ({
   };
 };
 
-/* ===========================================================================
- * Summaries
- * ======================================================================== */
+/* Summaries */
 
 /**
  * Persist a generated summary.
- *
- * A duplicate-key error is SWALLOWED, not raised: two members can request the
- * same uncached summary simultaneously, both miss the cache, and both try to
- * write. The unique index makes one lose — and losing that race is completely
- * harmless, since the winner stored the same thing.
  */
 const persistSummary = (book, { kind, length, language, inputHash, sourceType, generatedBy }) =>
   async (content, meta) => {
@@ -409,9 +340,6 @@ const persistSummary = (book, { kind, length, language, inputHash, sourceType, g
 /**
  * Generate (or fetch) a book summary.
  *
- * @param {string} bookId
- * @param {object} options
- * @param {'SHORT'|'MEDIUM'|'LONG'} [options.length]
  * @param {boolean} [options.force] Bypass the cache. Staff only.
  */
 export const getSummary = async (bookId, { length = AI_SUMMARY_LENGTH.MEDIUM, language = 'en', force = false } = {}, user = null) => {
@@ -565,15 +493,10 @@ export const getSimplified = async (bookId, { language = 'en', force = false } =
   return { ...result, book: { id: String(book._id), title: book.title } };
 };
 
-/* ===========================================================================
- * Question answering
- * ======================================================================== */
+/* Question answering */
 
 /**
  * Answer a question about a book.
- *
- * Answers are cached against a NORMALISED question hash, so the same question
- * asked by twenty members costs one call in total.
  */
 export const askQuestion = async (bookId, question, user = null) => {
   assertFeatureEnabled(AI_FEATURE.QA);
@@ -649,20 +572,10 @@ export const askQuestion = async (bookId, question, user = null) => {
   };
 };
 
-/* ===========================================================================
- * Recommendations
- * ======================================================================== */
+/* Recommendations */
 
 /**
  * Recommend books for a member.
- *
- * SELECTION IS A DATABASE QUERY, NOT AN AI CALL. Books are chosen by
- * overlapping categories and authors with what the member has borrowed —
- * instant, free, and available for every member. The model is asked only to
- * write the one-sentence rationale, which is the part it is actually good at.
- *
- * With no borrowing history the fallback is popularity, which is the honest
- * answer to "what should I read?" from someone the library knows nothing about.
  */
 export const getRecommendations = async (user, { limit = 10, explain = false } = {}) => {
   assertFeatureEnabled(AI_FEATURE.RECOMMENDATIONS);
@@ -793,17 +706,10 @@ export const getRecommendations = async (user, { limit = 10, explain = false } =
   };
 };
 
-/* ===========================================================================
- * Review moderation
- * ======================================================================== */
+/* Review moderation */
 
 /**
  * Escalate an ambiguous review to the model.
- *
- * Called ONLY when the heuristic pre-filter was inconclusive — obvious spam
- * and obviously clean text never reach here, which is what keeps the budget
- * alive. Returns null when no call could be made, so the caller keeps the
- * heuristic verdict rather than losing the review.
  */
 export const moderateReview = async (review) => {
   if (!config.ai.isFeatureEnabled(AI_FEATURE.REVIEW_MODERATION)) return null;
@@ -847,9 +753,7 @@ export const moderateReview = async (review) => {
   }
 };
 
-/* ===========================================================================
- * Metadata enrichment
- * ======================================================================== */
+/* Metadata enrichment */
 
 /** Suggest categories, tags and a reading level for a book. Librarian-triggered. */
 export const suggestMetadata = async (bookId, user) => {
@@ -879,9 +783,7 @@ export const suggestMetadata = async (bookId, user) => {
   return { ...result, book: { id: String(book._id), title: book.title } };
 };
 
-/* ===========================================================================
- * Administration
- * ======================================================================== */
+/* Administration */
 
 /** Quota, mode and cache status. */
 export const getStatus = async () => {
@@ -924,10 +826,6 @@ export const syncUsage = async () => {
 
 /**
  * Regenerate mock summaries with real model output.
- *
- * For after a valid token is added: entries produced offline can be upgraded
- * in bulk. Deliberately BOUNDED — with a 100-call lifetime budget, an
- * unbounded regeneration would spend everything in one command.
  */
 export const upgradeMockSummaries = async ({ limit = 5 } = {}, user) => {
   const mocks = await AiSummary.find({ isMock: true }).limit(limit).populate('book', 'title');

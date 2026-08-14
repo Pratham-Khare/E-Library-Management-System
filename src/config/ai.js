@@ -1,36 +1,11 @@
 /**
- * ---------------------------------------------------------------------------
- * AI SERVICE CONFIGURATION
- * ---------------------------------------------------------------------------
  * The supplied API token has a HARD LIFETIME QUOTA OF 100 CALLS.
- *
- * That single fact shapes this entire subsystem. A naive implementation that
- * calls the model on every "summarise" request would exhaust the budget during
- * the first demo and leave the feature permanently broken. So the design is
- * cache-first, with four independent layers of protection:
- *
- *   1. PERSISTENT CACHE   — AiSummary is keyed on
- *                           (bookId, kind, length, language, promptVersion).
- *                           A repeat request is a database read costing zero
- *                           calls. This is the layer that does the real work.
- *   2. GLOBAL QUOTA GUARD — a running count of consumed calls, reconciled
- *                           against the upstream GET /v1/usage endpoint.
- *   3. PER-USER DAILY CAP — see config/rateLimit.js (5/user/day).
- *   4. HEURISTIC-FIRST    — recommendations and review moderation try a cheap
- *                           non-AI path first and only escalate when it is
- *                           genuinely inconclusive.
- *
- * And when all of that is not enough — no token, bad token, quota spent — the
- * MOCK PROVIDER takes over so the feature degrades instead of breaking.
- * ---------------------------------------------------------------------------
  */
 
 import env from './env.js';
 import { AI_FEATURE, AI_LENGTH_WORD_TARGET } from '../constants/enums.js';
 
-/* ===========================================================================
- * Upstream connection
- * ======================================================================== */
+/* Upstream connection */
 
 /**
  * The upstream proxies OpenAI's chat completions API with the same request and
@@ -66,17 +41,11 @@ export const hasToken = Boolean(
   api.token && api.token.trim() !== '' && !PLACEHOLDER_TOKENS.includes(api.token.trim().toLowerCase())
 );
 
-/* ===========================================================================
- * Retry & circuit breaker
- * ======================================================================== */
+/* Retry & circuit breaker */
 
 /**
  * Retries apply ONLY to failures that might succeed on a second attempt —
  * network errors, timeouts, 5xx, and the upstream's `passthrough` errors.
- *
- * 400 (bad request), 401 (bad token) and 404 (wrong model) are never retried:
- * the same request will fail identically, and on a 100-call budget a pointless
- * retry is a call we cannot get back.
  */
 export const retry = Object.freeze({
   maxAttempts: env.AI_MAX_RETRIES,
@@ -100,9 +69,7 @@ export const circuitBreaker = Object.freeze({
   resetTimeoutMs: 60_000,
 });
 
-/* ===========================================================================
- * Quota management
- * ======================================================================== */
+/* Quota management */
 
 export const quota = Object.freeze({
   /** Lifetime calls this deployment may spend. */
@@ -121,9 +88,7 @@ export const quota = Object.freeze({
   warnAtFraction: 0.75,
 });
 
-/* ===========================================================================
- * Caching
- * ======================================================================== */
+/* Caching */
 
 export const cache = Object.freeze({
   enabled: env.AI_CACHE_ENABLED,
@@ -142,9 +107,7 @@ export const cache = Object.freeze({
   cacheQuestionAnswers: true,
 });
 
-/* ===========================================================================
- * Mock mode
- * ======================================================================== */
+/* Mock mode */
 
 export const MOCK_MODES = Object.freeze({
   /** Mock only when a live call is impossible. Recommended. */
@@ -170,12 +133,6 @@ export const mock = Object.freeze({
 
   /**
    * Should the mock provider handle this situation?
-   *
-   * Under `auto`, mocks cover the three cases where a live call cannot happen:
-   * no usable token, the upstream rejected the token, or the quota is spent.
-   *
-   * @param {{ tokenMissing?: boolean, tokenRejected?: boolean, quotaExhausted?: boolean }} reason
-   * @returns {boolean}
    */
   shouldMock(reason = {}) {
     if (this.alwaysMock) return true;
@@ -204,9 +161,7 @@ export const initialModeReason = (() => {
   return `Live calls enabled against ${api.model} (budget: ${quota.total} calls)`;
 })();
 
-/* ===========================================================================
- * Feature flags
- * ======================================================================== */
+/* Feature flags */
 
 /**
  * Individual AI capabilities can be switched off to conserve quota. A disabled
@@ -225,9 +180,7 @@ export const features = Object.freeze({
 
 export const isFeatureEnabled = (feature) => features[feature] === true;
 
-/* ===========================================================================
- * Prompt inputs
- * ======================================================================== */
+/* Prompt inputs */
 
 export const prompt = Object.freeze({
   /**

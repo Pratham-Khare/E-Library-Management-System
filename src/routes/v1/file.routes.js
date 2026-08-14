@@ -1,15 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * FILE ROUTES  —  /api/v1/files
- * ---------------------------------------------------------------------------
  * Cover images and avatars are served STATICALLY (mounted in app.js) because
  * they are public by nature. Ebooks are not — every read goes through
  * `GET /files/ebooks/:assetId/read`, which verifies an active digital loan and
- * then streams the bytes.
- *
- * That distinction is the whole design: a static mount for ebooks would mean
- * anyone with a URL could take the library's collection without borrowing.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -27,9 +20,7 @@ const router = Router();
 
 const assetIdParam = z.object({ assetId: objectId });
 
-/* ===========================================================================
- * Uploads
- * ======================================================================== */
+/* Uploads */
 
 /**
  * @openapi
@@ -138,9 +129,7 @@ router.post(
   fileController.uploadAvatar
 );
 
-/* ===========================================================================
- * Asset management
- * ======================================================================== */
+/* Asset management */
 
 /**
  * @openapi
@@ -217,9 +206,7 @@ router.post(
   fileController.reextract
 );
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 /**
  * @openapi

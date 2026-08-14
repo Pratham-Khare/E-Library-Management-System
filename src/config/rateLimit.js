@@ -1,24 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * RATE LIMITING CONFIGURATION
- * ---------------------------------------------------------------------------
  * Five independent limiter groups, because one global limit cannot serve
  * competing goals. Browsing the catalogue should be generous; hammering the
  * login endpoint should not be; and burning the shared AI budget should be
- * strictly rationed per user.
- *
- * Two different KEYS are used, and the distinction matters:
- *
- *   IP-keyed   — for unauthenticated traffic (login, register, search). There
- *                is no user yet, so the IP is the only handle we have.
- *   USER-keyed — for authenticated, expensive actions (uploads, AI). Keying
- *                these by IP would let one person bypass the limit by
- *                switching networks, and would unfairly throttle an entire
- *                campus sharing one NAT address.
- *
- * The limiter middleware factory lives in src/middlewares/rateLimiter.js; this
- * file only describes the policy.
- * ---------------------------------------------------------------------------
  */
 
 import env from './env.js';
@@ -47,15 +30,6 @@ const limitExceededBody = (message) => ({
 
 /**
  * The limiter groups.
- *
- *   windowMs  — length of the sliding window, in milliseconds.
- *   max       — requests permitted per key per window.
- *   keyBy     — IP or USER (see above).
- *   message   — human-readable text returned on 429.
- *   skipSuccessfulRequests — when true, only FAILED attempts count. Used on
- *                            auth so a legitimately busy user is never locked
- *                            out, while a credential-stuffing attacker (whose
- *                            attempts fail) burns the budget immediately.
  */
 export const groups = Object.freeze({
   /**
@@ -111,15 +85,6 @@ export const groups = Object.freeze({
 
   /**
    * AI — the single most important limit in this application.
-   *
-   * The shared AI token has a HARD LIFETIME QUOTA OF 100 CALLS. Without a
-   * per-user cap, one curious member clicking "summarise" repeatedly would
-   * exhaust the budget for everyone, permanently. Five generations per user
-   * per day, combined with the persistent summary cache, keeps the budget
-   * alive across a real demo.
-   *
-   * This is the FIRST of three defences; see config/ai.js for the global
-   * quota guard and the cache.
    */
   ai: Object.freeze({
     windowMs: env.AI_RATE_LIMIT_WINDOW_MS,
@@ -133,10 +98,6 @@ export const groups = Object.freeze({
 
 /**
  * Options common to every limiter instance.
- *
- * standardHeaders sends the modern RateLimit-* headers so a client can see how
- * much budget is left; legacyHeaders (X-RateLimit-*) are switched off to avoid
- * sending both.
  */
 export const defaults = Object.freeze({
   standardHeaders: 'draft-7',
@@ -149,19 +110,9 @@ export const buildLimitResponse = (groupName) =>
 
 /**
  * STORE NOTE — multi-instance deployments
- * --------------------------------------
  * The default store is in-memory, which is correct for a single process but
  * has a real limitation: with N instances behind a load balancer, each keeps
  * its own counters, so the effective limit becomes N × max.
- *
- * Swapping in a shared store is a one-line change here and one dependency,
- * with no other code touched:
- *
- *     import { RedisStore } from 'rate-limit-redis';
- *     export const store = new RedisStore({ sendCommand: (...args) => redis.call(...args) });
- *
- * Left in-memory deliberately: this deployment is single-instance, and adding
- * Redis would mean adding infrastructure that buys nothing today.
  */
 export const store = undefined;
 

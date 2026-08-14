@@ -1,39 +1,14 @@
 /**
- * ---------------------------------------------------------------------------
- * LIBRARY POLICY — THE BUSINESS RULEBOOK
- * ---------------------------------------------------------------------------
  * This is the file to open to answer "how does this library actually work?".
- *
- * Every circulation rule — how long you may keep a book, how many you may hold
- * at once, when a fine starts and how big it can get — is a value here, driven
- * from .env. None of these numbers appear anywhere else in the codebase, so
- * changing library policy never means changing logic.
- *
- * Policy is keyed by MEMBERSHIP TYPE, not by role. A librarian borrowing a
- * book is subject to their own membership tier like anyone else.
- * ---------------------------------------------------------------------------
  */
 
 import env from './env.js';
 import { MEMBERSHIP_TYPES } from '../constants/roles.js';
 
-/* ===========================================================================
- * Per-membership borrowing policy
- * ======================================================================== */
+/* Per-membership borrowing policy */
 
 /**
  * The policy matrix.
- *
- *   loanPeriodDays  — days from issue until the book is due back.
- *   maxActiveLoans  — how many items may be out simultaneously.
- *   maxRenewals     — how many times a loan may be extended. Each renewal
- *                     grants a FRESH full loan period, so the total fine-free
- *                     window is loanPeriodDays × (1 + maxRenewals).
- *
- * With the shipped defaults:
- *   PUBLIC   14 × 3 = 42 fine-free days, 3 books at once
- *   STUDENT  21 × 3 = 63 fine-free days, 5 books at once
- *   FACULTY  30 × 3 = 90 fine-free days, 8 books at once
  */
 export const policies = Object.freeze({
   [MEMBERSHIP_TYPES.PUBLIC]: Object.freeze({
@@ -57,31 +32,14 @@ export const policies = Object.freeze({
  * Look up the policy for a membership type, falling back to the most
  * restrictive tier (PUBLIC) if the value is somehow unrecognised. Failing
  * closed matters here: an unknown tier must never grant unlimited borrowing.
- *
- * @param {string} membershipType
- * @returns {{loanPeriodDays: number, maxActiveLoans: number, maxRenewals: number}}
  */
 export const getPolicy = (membershipType) =>
   policies[membershipType] ?? policies[MEMBERSHIP_TYPES.PUBLIC];
 
-/* ===========================================================================
- * Fines
- * ======================================================================== */
+/* Fines */
 
 /**
  * Overdue charging rules.
- *
- *   graceDays          — days after the due date during which nothing accrues.
- *                        A book 2 days late with graceDays=2 owes nothing.
- *   perDay             — charged for each chargeable day beyond the grace.
- *   maxPerLoan         — ceiling, so a forgotten book cannot accrue forever.
- *   blockBorrowingAbove— once PENDING fines exceed this, borrowing is refused
- *                        until the member settles up.
- *
- * Worked example with the defaults (grace 2, ₹5/day, cap ₹500):
- *   3 days late  -> (3 - 2) × 5 = ₹5
- *   10 days late -> (10 - 2) × 5 = ₹40
- *   200 days late-> would be ₹990, capped to ₹500
  */
 export const fines = Object.freeze({
   graceDays: env.FINE_GRACE_DAYS,
@@ -94,9 +52,6 @@ export const fines = Object.freeze({
 /**
  * Chargeable days for a loan that is `daysOverdue` days past due.
  * Never negative — the grace period absorbs the first few days entirely.
- *
- * @param {number} daysOverdue
- * @returns {number}
  */
 export const chargeableDays = (daysOverdue) => Math.max(0, daysOverdue - fines.graceDays);
 
@@ -104,9 +59,6 @@ export const chargeableDays = (daysOverdue) => Math.max(0, daysOverdue - fines.g
  * The fine owed for a loan `daysOverdue` days past due, after grace and cap.
  * This is the single source of truth for fine arithmetic — the cron job, the
  * return handler and the seeder all call it, so they cannot disagree.
- *
- * @param {number} daysOverdue Whole days past the due date.
- * @returns {number} Amount owed, rounded to 2 decimal places.
  */
 export const calculateOverdueFine = (daysOverdue) => {
   const chargeable = chargeableDays(daysOverdue);
@@ -115,18 +67,12 @@ export const calculateOverdueFine = (daysOverdue) => {
   return Math.round(Math.min(raw, fines.maxPerLoan) * 100) / 100;
 };
 
-/* ===========================================================================
- * Digital lending
- * ======================================================================== */
+/* Digital lending */
 
 /**
  * Digital loans work like physical ones but consume one of a fixed number of
  * simultaneous licences instead of a copy, and expire on their own — nobody
  * has to bring an ebook back.
- *
- *   loanDays                  — term before automatic expiry.
- *   defaultConcurrentLicenses — licences granted to a new book with an ebook.
- *   expiryWarningHours        — how far ahead to warn the reader.
  */
 export const digital = Object.freeze({
   loanDays: env.DIGITAL_LOAN_DAYS,
@@ -134,9 +80,7 @@ export const digital = Object.freeze({
   expiryWarningHours: 24,
 });
 
-/* ===========================================================================
- * Borrowing eligibility
- * ======================================================================== */
+/* Borrowing eligibility */
 
 /**
  * Conditions checked, in order, before a loan is created. Each maps to a
@@ -153,9 +97,7 @@ export const eligibility = Object.freeze({
   requireActiveAccount: true,
 });
 
-/* ===========================================================================
- * Reminders & renewals
- * ======================================================================== */
+/* Reminders & renewals */
 
 export const reminders = Object.freeze({
   /** "Due soon" email/notification this many days before the due date. */
@@ -165,12 +107,6 @@ export const reminders = Object.freeze({
 /**
  * Renewal gate. With reservations out of scope there is no queue to consult,
  * so exactly two conditions apply:
- *
- *   1. renewalCount < maxRenewals for the member's tier
- *   2. the loan is not already overdue
- *
- * Rule 2 is the important one: without it, a member could dodge an accruing
- * fine indefinitely by renewing after the fact.
  */
 export const renewals = Object.freeze({
   allowWhenOverdue: false,
@@ -178,9 +114,7 @@ export const renewals = Object.freeze({
   resetFromToday: true,
 });
 
-/* ===========================================================================
- * Catalogue & search defaults
- * ======================================================================== */
+/* Catalogue & search defaults */
 
 export const catalog = Object.freeze({
   /** Default page size for list endpoints. */

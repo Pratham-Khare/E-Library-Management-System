@@ -1,17 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * NOTIFICATION SERVICE
- * ---------------------------------------------------------------------------
  * One `notify()` call raises an in-app notification AND, where the member
  * wants it and a template exists, an email. Callers never orchestrate the two
  * separately — which is what keeps them consistent, and what makes "the email
- * failed but the notification centre still shows it" the normal outcome
- * instead of a bug.
- *
- * EMAIL FAILURE NEVER FAILS THE OPERATION. If SendGrid is down while a book is
- * being returned, the return must still succeed. Delivery is best-effort and
- * its outcome is recorded on the notification for later diagnosis.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -26,16 +16,6 @@ import mailService from './mail/index.js';
 
 /**
  * Raise a notification.
- *
- * @param {object} params
- * @param {string|object} params.user Id, or a loaded user document.
- * @param {string} params.type A NOTIFICATION_TYPE value.
- * @param {string} params.title
- * @param {string} params.body
- * @param {object} [params.data] Context ids, so a client can act on it.
- * @param {string} [params.actionUrl]
- * @param {object} [params.emailData] Template data, when it differs from `data`.
- * @param {boolean} [params.email] Attempt email delivery. Default true.
  */
 export const notify = async ({ user, type, title, body, data = {}, actionUrl = null, emailData = null, email = true }) => {
   // Accept either an id or a document, so callers that already have the user

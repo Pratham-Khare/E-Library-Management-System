@@ -1,26 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHENTICATION MIDDLEWARE
- * ---------------------------------------------------------------------------
  * Verifies the access token and attaches the current user to `req.user`.
- *
- * THE DATABASE LOOKUP IS DELIBERATE. A JWT is self-contained, and the common
- * shortcut is to trust its claims and skip the query entirely — fast, but it
- * means a token stays fully valid for its whole lifetime no matter what
- * happens to the account behind it. Suspend a member and they keep borrowing.
- * Delete an account and its token still works. Change a password after a
- * breach and the attacker's session survives.
- *
- * So every authenticated request re-reads the user and checks:
- *
- *   1. the account still exists and is not soft-deleted
- *   2. the account is ACTIVE, not suspended
- *   3. the token was issued AFTER the last password change
- *
- * Check 3 is what makes "change password" genuinely sign out every device.
- * The cost is one indexed lookup by primary key — a fraction of a millisecond,
- * and worth it for revocation that actually works.
- * ---------------------------------------------------------------------------
  */
 
 import { User } from '../models/User.js';
@@ -75,9 +54,6 @@ const loadUser = async (payload) => {
 
 /**
  * Require a valid access token.
- *
- * Attaches `req.user` — the Mongoose document, so downstream code can use its
- * methods and virtuals — plus `req.user.id` as a string for convenience.
  */
 export const authenticate = asyncHandler(async (req, res, next) => {
   const token = extractBearerToken(req);
@@ -101,11 +77,6 @@ export const authenticate = asyncHandler(async (req, res, next) => {
 
 /**
  * Authenticate IF a token is present, but do not require one.
- *
- * For endpoints that are public yet richer when signed in — a book listing
- * that also marks which titles are in your favourites, for instance. An
- * invalid token is treated as no token rather than an error, because the
- * caller did not claim to be authenticated in the first place.
  */
 export const optionalAuthenticate = asyncHandler(async (req, res, next) => {
   const token = extractBearerToken(req);

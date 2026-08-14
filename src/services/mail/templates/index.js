@@ -1,18 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * EMAIL TEMPLATES
- * ---------------------------------------------------------------------------
  * One render function per notification type. Each returns
  * `{ subject, html, text }` — never just HTML, because a plain-text
  * alternative is what keeps mail out of spam folders and readable in clients
- * that refuse HTML.
- *
- * These are the BUILT-IN templates, used when no SendGrid Dynamic Template ID
- * is configured for a type. That default matters: it means email works
- * immediately after `npm install`, with nothing set up in a SendGrid dashboard.
- * Configure a template ID in .env and SendGrid renders it instead, receiving
- * the same data as `dynamicTemplateData`.
- * ---------------------------------------------------------------------------
  */
 
 import { NOTIFICATION_TYPE } from '../../../constants/enums.js';
@@ -32,9 +21,7 @@ const formatMoney = (amount) => `${libraryConfig.fines.currency} ${Number(amount
 const plural = (count, singular, pluralForm = `${singular}s`) =>
   `${count} ${count === 1 ? singular : pluralForm}`;
 
-/* ===========================================================================
- * Templates
- * ======================================================================== */
+/* Templates */
 
 /** Sent on registration. */
 const welcome = ({ user }) => {
@@ -275,9 +262,7 @@ const accountSuspended = ({ user, reason }) => {
   return { subject, html, text };
 };
 
-/* ===========================================================================
- * Registry
- * ======================================================================== */
+/* Registry */
 
 /**
  * Notification type -> renderer. A type absent from this map has no email

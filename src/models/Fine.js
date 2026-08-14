@@ -1,25 +1,12 @@
 /**
- * ---------------------------------------------------------------------------
- * FINE MODEL
- * ---------------------------------------------------------------------------
- * A charge raised against a member — overdue accrual, damage, or replacement
- * cost for a lost item.
+ * A charge against a member — overdue accrual, damage, or replacement cost.
  *
- * A SEPARATE COLLECTION, not a field on Loan, for three reasons:
+ * A separate collection rather than a field on Loan: one loan can raise more
+ * than one charge, fines outlive their loans in accounting terms, and "what
+ * does this member owe?" should not have to walk the circulation history.
  *
- *   1. One loan can generate more than one charge. A book returned late AND
- *      damaged is two distinct fines with different reasons and different
- *      dispute outcomes.
- *   2. Fines outlive their loans in accounting terms. A returned loan is
- *      closed; the unpaid fine it produced is still owed.
- *   3. "What does this member owe?" and "what did we collect this month?" are
- *      queries about money, and they should not have to walk the circulation
- *      history to answer.
- *
- * `amount` is FROZEN at the moment the fine is raised. The daily rate lives in
- * configuration and may change; a fine already assessed must not silently
- * re-price itself because someone edited .env.
- * ---------------------------------------------------------------------------
+ * `amount` is frozen when the fine is raised — the daily rate lives in config
+ * and may change, but an assessed fine must not re-price itself.
  */
 
 import mongoose from 'mongoose';
@@ -53,22 +40,14 @@ const fineSchema = new Schema(
       required: true,
     },
 
-    /**
-     * The amount owed, frozen at assessment time.
-     *
-     * Recomputing this from the current daily rate would mean a member's debt
-     * changing because an administrator adjusted a config value — including
-     * for fines already settled.
-     */
+    /** Frozen at assessment — a config change must not alter an existing debt. */
     amount: { type: Number, required: true, min: 0 },
 
     currency: { type: String, default: () => config.library.fines.currency, maxlength: 3 },
 
     /**
-     * Days used in the calculation, AFTER the grace period.
-     *
-     * Recorded so a member disputing a fine can be shown the arithmetic —
-     * "12 days late, 2 forgiven, 10 × ₹5" — rather than an unexplained number.
+     * Days used in the calculation, after the grace period. Recorded so a
+     * disputed fine can be shown as arithmetic: "12 late, 2 forgiven, 10 × ₹5".
      */
     daysOverdue: { type: Number, default: null, min: 0 },
     chargeableDays: { type: Number, default: null, min: 0 },
@@ -99,11 +78,7 @@ const fineSchema = new Schema(
 
     waivedAt: { type: Date, default: null },
     waivedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-    /**
-     * Why it was forgiven. REQUIRED when waiving — enforced in the service.
-     * A waiver is staff writing off money the library was owed, and an
-     * unexplained one is indistinguishable from a mistake or a favour.
-     */
+    /** Why it was forgiven. Required when waiving — an unexplained write-off is indistinguishable from a favour. */
     waiverNote: { type: String, trim: true, maxlength: 500, default: null },
 
     /** Free-text detail, e.g. what exactly was damaged. */
@@ -114,9 +89,7 @@ const fineSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /**
  * "What does this member owe?" — evaluated on every borrow attempt as part of
@@ -130,9 +103,7 @@ fineSchema.index({ status: 1, createdAt: -1 });
 /** Revenue reporting by period. */
 fineSchema.index({ paidAt: -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 /** Is this still owed? Only PENDING fines count toward the borrowing block. */
 fineSchema.virtual('isOutstanding').get(function isOutstanding() {
@@ -144,18 +115,12 @@ fineSchema.virtual('formattedAmount').get(function formattedAmount() {
   return `${this.currency} ${Number(this.amount).toFixed(2)}`;
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /**
- * Total a member currently owes.
- *
- * An aggregation rather than fetching the rows and summing in JavaScript: the
- * database can add numbers, and this runs on every borrow attempt.
- *
- * Returns 0 when nothing is owed — `$group` produces NO documents for an empty
- * match, so the optional chain is doing real work, not defensive noise.
+ * Total a member owes. An aggregation rather than summing in JavaScript, since
+ * this runs on every borrow attempt. `$group` yields no documents for an empty
+ * match, so the optional chain is doing real work.
  */
 fineSchema.statics.outstandingTotalForUser = async function outstandingTotalForUser(userId) {
   const [result] = await this.aggregate([
@@ -180,11 +145,8 @@ fineSchema.statics.findOutstandingForUser = function findOutstandingForUser(user
 };
 
 /**
- * The fine already raised against a loan, if any.
- *
- * Used to make overdue accrual IDEMPOTENT: the nightly job updates an existing
- * fine rather than creating a second one, so running it twice in a day does
- * not double a member's debt.
+ * The fine already raised against a loan. Makes overdue accrual idempotent —
+ * the nightly job updates rather than raising a second one.
  */
 fineSchema.statics.findForLoan = function findForLoan(loanId, reason = FINE_REASON.OVERDUE) {
   return this.findOne({ loan: loanId, reason });

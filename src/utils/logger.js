@@ -1,21 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * APPLICATION LOGGER
- * ---------------------------------------------------------------------------
  * A winston logger configured from src/config/logger.js.
- *
- * The part worth reading is `redact()`. Request bodies flow through log lines
- * constantly, and those bodies contain passwords, JWTs and API keys. A log
- * file is typically far less protected than the database — it gets tailed,
- * copied into tickets, and shipped to third-party aggregators. So every object
- * passed to the logger is walked and any key on the deny-list has its value
- * replaced before it reaches a transport.
- *
- * Usage:
- *     import logger from '../utils/logger.js';
- *     logger.info('Book borrowed', { bookId, userId });
- *     logger.error('Borrow failed', { err });
- * ---------------------------------------------------------------------------
  */
 
 import fs from 'node:fs';
@@ -25,9 +9,7 @@ import env from '../config/env.js';
 
 const { combine, timestamp, printf, colorize, errors, json, splat } = winston.format;
 
-/* ===========================================================================
- * Redaction
- * ======================================================================== */
+/* Redaction */
 
 const redactKeySet = new Set(loggerConfig.redactKeys.map((key) => key.toLowerCase()));
 const dropKeySet = new Set(loggerConfig.dropKeys.map((key) => key.toLowerCase()));
@@ -36,11 +18,6 @@ const dropKeySet = new Set(loggerConfig.dropKeys.map((key) => key.toLowerCase())
  * Recursively copies a value, replacing sensitive values and dropping bulky
  * ones. Cycles are handled with a WeakSet — a Mongoose document or an Express
  * request can easily contain one, and an unguarded walk would recurse forever.
- *
- * @param {unknown} value
- * @param {WeakSet<object>} [seen]
- * @param {number} [depth]
- * @returns {unknown} A safe-to-log copy. The input is never mutated.
  */
 export const redact = (value, seen = new WeakSet(), depth = 0) => {
   // Guard against pathological nesting; 8 levels is far more than any log needs.
@@ -95,14 +72,6 @@ export const redact = (value, seen = new WeakSet(), depth = 0) => {
 
 /**
  * Winston format that runs redaction over every log entry's metadata.
- *
- * It MUTATES `info` rather than returning a fresh object, and that is not a
- * style choice. Winston tracks the level and the rendered message on `info`
- * as SYMBOL properties (`Symbol.for('level')`, `Symbol.for('message')`).
- * Returning a new plain object silently drops them, and the next format in the
- * chain — `colorize`, which looks up its palette by `info[Symbol.for('level')]`
- * — then fails on an undefined key. Preserving object identity keeps those
- * symbols intact.
  */
 const redactFormat = winston.format((info) => {
   // Reserved string keys winston owns; everything else is caller metadata.
@@ -110,16 +79,16 @@ const redactFormat = winston.format((info) => {
 
   const safeMeta = redact(meta);
 
-  // Object.keys() returns string keys only, so winston's symbols survive.
+  // Mutate `info` in place — returning a new object drops winston's
+  // Symbol(level), which colorize reads, and the first log line then throws.
+  // Object.keys() returns string keys only, so those symbols survive.
   for (const key of Object.keys(meta)) delete info[key];
   Object.assign(info, safeMeta);
 
   return info;
 });
 
-/* ===========================================================================
- * Output formats
- * ======================================================================== */
+/* Output formats */
 
 /** Human-readable single lines for a terminal. */
 const prettyFormat = printf(({ level, message, timestamp: ts, stack, ...meta }) => {
@@ -153,9 +122,7 @@ const productionFormat = combine(
   json()
 );
 
-/* ===========================================================================
- * Transports
- * ======================================================================== */
+/* Transports */
 
 const transports = [
   new winston.transports.Console({
@@ -193,9 +160,7 @@ if (loggerConfig.files.enabled) {
   }
 }
 
-/* ===========================================================================
- * The logger
- * ======================================================================== */
+/* The logger */
 
 winston.addColors(loggerConfig.colors);
 
@@ -212,9 +177,6 @@ const logger = winston.createLogger({
 /**
  * A child logger that stamps every entry with fixed context, so a request's
  * log lines can be correlated without repeating the id at each call site.
- *
- *     const log = logger.child({ requestId: req.id });
- *     log.info('Loan created');   // requestId included automatically
  */
 export const childLogger = (context) => logger.child(context);
 
@@ -228,8 +190,6 @@ export const httpStream = Object.freeze({
  * `npm run dev`, the answers to "which port, which database, is AI live, where
  * do emails go" should be visible immediately rather than requiring a hunt
  * through .env.
- *
- * @param {Array<{label: string, value: string}>} rows
  */
 export const banner = (title, rows) => {
   const width = 74;

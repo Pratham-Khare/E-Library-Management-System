@@ -1,18 +1,10 @@
 /**
- * ---------------------------------------------------------------------------
- * NOTIFICATION MODEL
- * ---------------------------------------------------------------------------
- * The in-app notification centre. Every notification is recorded here whether
- * or not an email also went out, so a member who never opens their email still
- * has a complete record of what happened to their account.
+ * The in-app notification centre. Everything is recorded here whether or not an
+ * email also went out, so a member who never opens email still has the record.
  *
- * `data` carries the ids needed to make a notification ACTIONABLE — a
- * due-soon notice with a `loanId` lets a client render a "Renew" button
- * directly, rather than leaving the member to go and find the loan.
- *
- * A TTL index expires old READ notifications. Unread ones are kept
- * indefinitely: the whole point is that the member has not seen them yet.
- * ---------------------------------------------------------------------------
+ * `data` carries the ids that make a notification actionable — a due-soon
+ * notice with a `loanId` lets a client render a Renew button. A TTL index
+ * expires READ notifications; unread ones are kept indefinitely.
  */
 
 import mongoose from 'mongoose';
@@ -62,13 +54,7 @@ const notificationSchema = new Schema(
     providerMessageId: { type: String, default: null },
     emailError: { type: String, default: null, maxlength: 300 },
 
-    /**
-     * TTL anchor.
-     *
-     * Set only when the notification is READ, so unread ones never expire.
-     * A member who has not seen a notification has not been notified, and
-     * silently deleting it would defeat the entire feature.
-     */
+    /** Set only when READ, so unread notifications never expire. */
     expiresAt: { type: Date, default: null, index: { expires: 0 } },
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
@@ -81,21 +67,14 @@ notificationSchema.virtual('isRead').get(function isRead() {
   return this.readAt !== null;
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /** How many unread notifications a member has — the badge count. */
 notificationSchema.statics.unreadCountFor = function unreadCountFor(userId) {
   return this.countDocuments({ user: userId, readAt: null });
 };
 
-/**
- * Mark notifications read, and start their retention clock.
- *
- * `expiresAt` is set HERE rather than at creation, so the TTL measures time
- * since the member saw it — not time since it was raised.
- */
+/** Mark read, and start the retention clock — the TTL measures time since the member saw it. */
 notificationSchema.statics.markRead = function markRead(userId, notificationIds = null) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + config.cron.retention.readNotificationDays * 86_400_000);

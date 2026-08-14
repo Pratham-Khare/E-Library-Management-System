@@ -1,21 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * USER SERVICE
- * ---------------------------------------------------------------------------
  * Profile management for members, and account administration for staff.
- *
- * Two guards here are worth calling out because both protect against a
- * self-inflicted lockout that is tedious to recover from:
- *
- *   LAST-ADMIN PROTECTION — the system refuses to demote, suspend or delete
- *   the final administrator. Without it, one careless click leaves nobody able
- *   to administer anything, and the only way back is editing the database by
- *   hand.
- *
- *   SELF-ACTION LIMITS — an administrator cannot change their own role or
- *   suspend themselves. Both are almost always a mistake, and neither has a
- *   legitimate use case that a second admin could not perform instead.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -39,13 +23,10 @@ import mailService from './mail/index.js';
  *  on an arbitrary field means an unindexed collection scan. */
 const SORTABLE_FIELDS = ['name', 'email', 'createdAt', 'lastLoginAt', 'stats.outstandingFine', 'stats.totalBorrowed'];
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 /**
  * Fetch one user.
- * @param {string} userId
  * @param {boolean} [includeDeleted] Staff may look at soft-deleted accounts.
  */
 export const getById = async (userId, includeDeleted = false) => {
@@ -84,11 +65,6 @@ export const list = async (query) => {
 
   /**
    * Free-text search across name, email and enrolment number.
-   *
-   * A case-insensitive regex rather than the text index, because staff
-   * typically type a PARTIAL value — "anan" should find "Ananya", which a text
-   * index (word-boundary based) would not match. The term is escaped, so a
-   * search for "C++" or "(a+)+" cannot become a pathological pattern.
    */
   if (query.search) {
     const pattern = new RegExp(escapeRegex(query.search), 'i');
@@ -103,17 +79,10 @@ export const list = async (query) => {
   return paginateQuery(User, filter, { sort, page, limit, skip });
 };
 
-/* ===========================================================================
- * Self-service
- * ======================================================================== */
+/* Self-service */
 
 /**
  * Update one's own profile.
- *
- * The validator already strips `role`, `email`, `status` and `stats`, so this
- * only ever receives fields a member is permitted to change. Applying updates
- * field by field rather than `Object.assign(user, data)` keeps that guarantee
- * local and readable rather than depending on the validator alone.
  */
 export const updateProfile = async (userId, data) => {
   const user = await getById(userId);
@@ -178,13 +147,6 @@ export const updateNotificationPreferences = async (userId, preferences) => {
 
 /**
  * Self-deactivation.
- *
- * Soft delete only. Loans, fines and reviews reference this document, and
- * removing it would orphan the library's circulation history — which is the
- * library's permanent record, not the member's to erase.
- *
- * Refused while items are still out or fines are unpaid: closing an account is
- * not a way to walk away from three borrowed books.
  */
 export const deactivateOwnAccount = async (userId) => {
   const user = await getById(userId);
@@ -225,16 +187,10 @@ export const deactivateOwnAccount = async (userId) => {
   return user;
 };
 
-/* ===========================================================================
- * Administration
- * ======================================================================== */
+/* Administration */
 
 /**
  * Change a user's role.
- *
- * Two guards, both preventing an unrecoverable state:
- *   - an admin cannot change their own role (almost always a mistake)
- *   - the last remaining admin cannot be demoted (leaves nobody in charge)
  */
 export const changeRole = async (targetUserId, newRole, actor) => {
   if (String(targetUserId) === String(actor.id)) {
@@ -313,9 +269,6 @@ export const changeMembershipType = async (targetUserId, membershipType, student
 
 /**
  * Suspend an account.
- *
- * Every session is revoked immediately — a suspension that leaves the member
- * signed in for another fifteen minutes is not a suspension.
  */
 export const suspend = async (targetUserId, reason, actor) => {
   if (String(targetUserId) === String(actor.id)) {
@@ -391,10 +344,6 @@ export const verifyStudentProfile = async (targetUserId) => {
 
 /**
  * Create a staff account.
- *
- * Staff cannot self-register — public registration hard-codes the MEMBER role —
- * so this admin-only path is the only way a LIBRARIAN or ADMIN comes into
- * existence after the bootstrap account.
  */
 export const createStaffAccount = async (data, actor) => {
   const { hashPassword } = await import('../utils/password.js');

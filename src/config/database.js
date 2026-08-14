@@ -1,26 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * MONGODB CONNECTION
- * ---------------------------------------------------------------------------
  * Connection options plus the connect/disconnect lifecycle.
- *
- * The interesting part is REPLICA-SET DETECTION.
- *
- * MongoDB only supports multi-document transactions on a replica set. A
- * default local install runs as a standalone `mongod`, where starting a
- * session and calling `withTransaction` throws. Most tutorial code either
- * ignores transactions entirely (and corrupts data under concurrency) or uses
- * them unconditionally (and crashes on a developer's laptop).
- *
- * This file probes the deployment type once at connect time and records it.
- * `utils/transaction.js` reads that flag and either runs the operation inside
- * a real session or executes it directly with compensating rollback. The
- * critical borrow path is additionally written as a single atomic
- * compare-and-swap, so it is correct even with no transaction available.
- *
- * See docs/architecture.md for how to convert a local install to a single-node
- * replica set and unlock real transactions.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -29,15 +8,6 @@ import logger from '../utils/logger.js';
 
 /**
  * Driver options.
- *
- *   dbName            — kept out of MONGO_URI so one URI serves all environments.
- *   maxPoolSize       — concurrent sockets. Too few queues requests; too many
- *                       exhausts the server's connection limit.
- *   serverSelectionTimeoutMS — how long to hunt for a reachable node before
- *                       failing. Low enough that a wrong URI fails fast.
- *   autoIndex         — build indexes declared in schemas on startup. Wanted in
- *                       development; in production it blocks the event loop on
- *                       a large collection, so indexes are built deliberately.
  */
 export const options = Object.freeze({
   dbName: env.MONGO_DB_NAME,
@@ -53,16 +23,10 @@ export const options = Object.freeze({
 export const uri = env.MONGO_URI;
 export const dbName = env.MONGO_DB_NAME;
 
-/* ===========================================================================
- * Deployment capabilities, discovered at connect time
- * ======================================================================== */
+/* Deployment capabilities, discovered at connect time */
 
 /**
  * Populated by `connectDatabase()`. Read it through `getCapabilities()`.
- *
- *   isReplicaSet         — true when the server reports a replica-set name.
- *   supportsTransactions — same thing, named for how the app uses it.
- *   topology             — 'replicaSet' | 'sharded' | 'standalone' | 'unknown'
  */
 const capabilities = {
   isReplicaSet: false,
@@ -78,11 +42,6 @@ export const supportsTransactions = () => capabilities.supportsTransactions;
 
 /**
  * Ask the server what it is.
- *
- * The `hello` command reports `setName` on a replica-set member and
- * `msg: 'isdbgrid'` behind a mongos router. A standalone reports neither.
- * Probe failure is not fatal — we simply assume the more restrictive case
- * (no transactions), which is always safe.
  */
 const detectCapabilities = async () => {
   try {
@@ -122,9 +81,7 @@ const detectCapabilities = async () => {
   }
 };
 
-/* ===========================================================================
- * Connection lifecycle
- * ======================================================================== */
+/* Connection lifecycle */
 
 let listenersAttached = false;
 
@@ -157,11 +114,6 @@ const attachListeners = () => {
 
 /**
  * Connect, then detect capabilities.
- *
- * @returns {Promise<typeof mongoose.connection>}
- * @throws  Rethrows the driver error after logging actionable guidance. The
- *          caller (server.js) exits — an API that cannot reach its database
- *          should fail loudly at startup rather than serve 500s.
  */
 export const connectDatabase = async () => {
   attachListeners();

@@ -1,16 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHENTICATION REQUEST SCHEMAS
- * ---------------------------------------------------------------------------
  * Zod schemas for every /auth endpoint.
- *
- * Note what the registration schema deliberately DOES NOT accept: `role`,
- * `status`, `stats`, `membershipNumber`. Zod strips unknown keys, so a request
- * body containing `{"email": "...", "role": "ADMIN"}` arrives at the service
- * with the role silently removed. That single property is what prevents
- * self-promotion to administrator — the classic mass-assignment vulnerability.
- * Roles are only ever changed through an explicit admin-only endpoint.
- * ---------------------------------------------------------------------------
  */
 
 import { z } from 'zod';
@@ -36,9 +25,7 @@ const studentProfile = z.object({
   collegeEmail: email.optional(),
 });
 
-/* ===========================================================================
- * Registration
- * ======================================================================== */
+/* Registration */
 
 export const registerSchema = z
   .object({
@@ -70,11 +57,6 @@ export const registerSchema = z
   })
   /**
    * Cross-field rule: a college membership needs an enrolment number.
-   *
-   * Checked here as well as in the model. The model guarantees the invariant
-   * on every write path including the seeder; doing it here too means the API
-   * caller gets a clean 422 naming the exact field, rather than a Mongoose
-   * error translated after the fact.
    */
   .superRefine((data, ctx) => {
     // Students only — see ENROLLMENT_REQUIRED_MEMBERSHIP_TYPES for why faculty
@@ -91,9 +73,7 @@ export const registerSchema = z
     }
   });
 
-/* ===========================================================================
- * Login & session
- * ======================================================================== */
+/* Login & session */
 
 export const loginSchema = z.object({
   email,
@@ -113,9 +93,7 @@ export const refreshSchema = z.object({
 
 export const logoutSchema = refreshSchema;
 
-/* ===========================================================================
- * Password management
- * ======================================================================== */
+/* Password management */
 
 export const forgotPasswordSchema = z.object({ email });
 
@@ -145,17 +123,10 @@ export const changePasswordSchema = z
     message: 'Your new password must be different from your current one',
   });
 
-/* ===========================================================================
- * Profile
- * ======================================================================== */
+/* Profile */
 
 /**
  * Self-service profile update.
- *
- * Note the absence of `email`, `role`, `membershipType`, `status` and `stats`.
- * Changing an email is an identity change that needs its own verified flow;
- * the rest are staff-controlled. Zod strips them, so including any of them in
- * a request body is a silent no-op rather than a privilege escalation.
  */
 export const updateProfileSchema = z
   .object({
@@ -178,9 +149,7 @@ export const updateProfileSchema = z
     message: 'Provide at least one field to update',
   });
 
-/* ===========================================================================
- * Session id parameter
- * ======================================================================== */
+/* Session id parameter */
 
 export const sessionIdParam = z.object({ sessionId: objectId });
 

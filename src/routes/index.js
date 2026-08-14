@@ -1,13 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
  * API v1 ROUTER
- * ---------------------------------------------------------------------------
  * Mounts every versioned resource router under the configured API prefix
  * (default `/api/v1`). One file to read to see the full surface of the API.
- *
- * Routers are added here as each phase lands; the list below reflects what is
- * currently wired up.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -57,9 +51,7 @@ router.get('/', (req, res) => {
   });
 });
 
-/* ===========================================================================
- * Resource routers
- * ======================================================================== */
+/* Resource routers */
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);

@@ -1,24 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * CENTRAL ERROR HANDLER
- * ---------------------------------------------------------------------------
  * The last middleware in the chain, and the ONLY place that formats an error
  * response. Everything else throws; this decides what the client sees.
- *
- * Its real job is TRANSLATION. Mongoose, jsonwebtoken and multer all throw
- * their own error shapes with messages written for a developer, not a user:
- *
- *     E11000 duplicate key error collection: elibrary.books index: isbn13_1
- *     Cast to ObjectId failed for value "abc" at path "_id"
- *     jwt expired
- *
- * Passing those through leaks the database name, collection names and index
- * names to anyone who can trigger them — a genuine reconnaissance gift — and
- * tells a legitimate user nothing useful. Each is mapped to a clean ApiError
- * with a stable code, while the original is logged in full server-side.
- *
- * Stack traces are returned in development only.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -31,9 +13,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../constants/httpStatus.js';
 import { ERROR_CODES } from '../constants/errorCodes.js';
 
-/* ===========================================================================
- * Translators — each converts a library-specific error into an ApiError
- * ======================================================================== */
+/* Translators — each converts a library-specific error into an ApiError */
 
 /**
  * Mongoose schema validation. Collapses `error.errors` — a map of path to
@@ -70,10 +50,6 @@ const fromCastError = (error) => {
 
 /**
  * A unique-index violation (E11000).
- *
- * `keyValue` names the field(s) that collided, which lets us say "this ISBN is
- * already in the catalogue" instead of exposing the raw driver message with
- * its database and index names in it.
  */
 const fromDuplicateKey = (error) => {
   const fields = Object.keys(error.keyValue ?? {});
@@ -154,17 +130,10 @@ const fromZodError = (error) => {
 const fromJsonParseError = () =>
   ApiError.badRequest('Request body is not valid JSON', ERROR_CODES.BAD_REQUEST);
 
-/* ===========================================================================
- * Normaliser
- * ======================================================================== */
+/* Normaliser */
 
 /**
  * Reduce any thrown value to an ApiError.
- *
- * The final fallback is deliberately opaque. An unrecognised error is by
- * definition one we did not anticipate, and its message may contain a file
- * path, a query, or an internal hostname. The client gets a generic message;
- * the real one goes to the log with the request id attached.
  */
 const normaliseError = (error) => {
   if (error instanceof ApiError) return error;
@@ -200,9 +169,7 @@ const normaliseError = (error) => {
   return fallback;
 };
 
-/* ===========================================================================
- * The handler
- * ======================================================================== */
+/* The handler */
 
 /**
  * Express identifies error middleware by its four-parameter signature, so
@@ -260,10 +227,6 @@ export const errorHandler = (err, req, res, next) => {
 
 /**
  * Handler for routes that do not exist.
- *
- * Mounted after every route so it only runs when nothing matched. Naming the
- * method and path is a real convenience — most 404s in practice are a typo or
- * a missing `/api/v1` prefix, and seeing the path echoed makes that obvious.
  */
 export const notFoundHandler = (req, res, next) => {
   next(

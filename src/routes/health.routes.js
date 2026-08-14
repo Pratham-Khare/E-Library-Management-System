@@ -1,29 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * HEALTH & READINESS ROUTES
- * ---------------------------------------------------------------------------
  * Two probes with genuinely different jobs, a distinction worth keeping:
- *
- *   GET /health        LIVENESS — "is the process alive?"
- *                      Never touches a dependency. An orchestrator uses this to
- *                      decide whether to RESTART the container. Checking the
- *                      database here would be actively harmful: a brief DB
- *                      blip would trigger a restart loop that cannot possibly
- *                      fix the database.
- *
- *   GET /health/ready  READINESS — "can it serve traffic right now?"
- *                      Checks every dependency. A load balancer uses this to
- *                      decide whether to ROUTE traffic here. Failing this pulls
- *                      the instance out of rotation without killing it, so it
- *                      can recover on its own.
- *
- * Readiness also reports which mail provider and which AI mode are actually in
- * use — the two settings most likely to be silently different from what the
- * .env file appears to say, because both fall back when misconfigured.
- *
- * Mounted at the root, not behind /api/v1: a probe should not have to know the
- * API version, and these are not part of the versioned contract.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -72,11 +48,6 @@ router.get('/health', (req, res) => {
 
 /**
  * Ping the database with a cheap command.
- *
- * `admin().ping()` is used rather than a real query because it costs the
- * server almost nothing and does not depend on any collection existing. It is
- * raced against a timeout — a hung connection would otherwise leave the
- * readiness probe itself hanging, which defeats the purpose.
  */
 const checkDatabase = async () => {
   const state = config.database.connectionState();
@@ -165,9 +136,6 @@ router.get(
 
     // The database is the only HARD dependency. Mail and AI both degrade
     // gracefully by design — emails fall back to the log, AI falls back to
-    // cached or mock content — so neither should pull the instance out of
-    // rotation. Only an unreachable database makes the API genuinely unable
-    // to serve.
     const ready = database.status === 'up';
 
     res.status(ready ? HTTP_STATUS.OK : HTTP_STATUS.SERVICE_UNAVAILABLE).json({

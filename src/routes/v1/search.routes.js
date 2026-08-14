@@ -1,12 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * SEARCH ROUTES  —  /api/v1/search
- * ---------------------------------------------------------------------------
  * Public, and rate-limited with its own budget. Search runs text-index queries
  * and `$facet` aggregations — the most database-expensive reads in the
  * application — so it gets a tighter limit than ordinary traffic rather than
- * sharing the global one.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';

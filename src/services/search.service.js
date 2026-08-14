@@ -1,28 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * SEARCH SERVICE
- * ---------------------------------------------------------------------------
  * Catalogue search: weighted full-text ranking, filtering, faceted counts,
  * autocomplete, and a fuzzy fallback.
- *
- * THREE THINGS HERE ARE WORTH READING:
- *
- * 1. THE FUZZY FALLBACK. MongoDB's text index matches whole words after
- *    stemming, so a search for "algo" finds nothing at all even though
- *    "Algorithms" is right there. Users type fragments and misspell things
- *    constantly, and an empty result page reads as "the library doesn't have
- *    it" rather than "try more letters". So when text search returns zero
- *    hits, the query is retried as an escaped regex.
- *
- * 2. FACETS IN ONE PASS. A filter sidebar needs counts per category, per
- *    language, per availability. Computing those as separate queries would
- *    mean five round-trips over the same working set. `$facet` runs every
- *    branch over one pipeline in a single pass.
- *
- * 3. CATEGORY FILTERS EXPAND DOWN THE TREE. Filtering by "Science" matches
- *    books tagged only with "Machine Learning" four levels below it, because
- *    the materialised ancestor path turns the whole subtree into one `$in`.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -36,9 +14,7 @@ import { escapeRegex } from '../utils/sanitize.js';
 
 const toObjectId = (value) => new mongoose.Types.ObjectId(String(value));
 
-/* ===========================================================================
- * Filter construction
- * ======================================================================== */
+/* Filter construction */
 
 /**
  * Translate validated query parameters into a MongoDB filter.
@@ -117,15 +93,10 @@ const SORT_OPTIONS = {
   recent: { createdAt: -1 },
 };
 
-/* ===========================================================================
- * Search
- * ======================================================================== */
+/* Search */
 
 /**
  * Search the catalogue.
- *
- * @param {object} query Validated query parameters.
- * @returns {Promise<{items: Array, meta: object, fallbackUsed: boolean}>}
  */
 export const search = async (query) => {
   const { page, limit, skip } = parsePagination(query);
@@ -182,14 +153,6 @@ export const search = async (query) => {
   /* --- Fuzzy fallback ------------------------------------------------- */
   /**
    * Text search found nothing. Retry as a substring match.
-   *
-   * Necessary because the text index matches whole stemmed words: "algo" does
-   * not match "Algorithms", and neither does a misspelling. Slower — this is a
-   * regex scan rather than an index seek — but it only runs when the fast path
-   * has already produced nothing, so the common case is unaffected.
-   *
-   * The term is escaped, so "C++" is searchable and a crafted pattern cannot
-   * cause catastrophic backtracking.
    */
   const pattern = new RegExp(escapeRegex(term), 'i');
   const fuzzyFilter = {
@@ -221,16 +184,10 @@ export const search = async (query) => {
   };
 };
 
-/* ===========================================================================
- * Facets
- * ======================================================================== */
+/* Facets */
 
 /**
  * Counts per filter value, for a sidebar.
- *
- * `$facet` runs every branch over ONE pipeline pass. Computed separately this
- * would be five queries over the same working set — and the counts could
- * disagree with each other if a write landed between them.
  */
 export const getFacets = async (query) => {
   const filter = await buildFilter(query);
@@ -304,17 +261,10 @@ export const getFacets = async (query) => {
   };
 };
 
-/* ===========================================================================
- * Autocomplete
- * ======================================================================== */
+/* Autocomplete */
 
 /**
  * Type-ahead suggestions across titles and authors.
- *
- * Anchored with `^` so the pattern is a PREFIX match, which MongoDB can serve
- * from the index on `title`. An unanchored regex would force a full collection
- * scan on every keystroke — the difference between a suggestion box that feels
- * instant and one that lags behind typing.
  */
 export const suggest = async (term, limit = config.library.catalog.suggestionLimit) => {
   const cleaned = String(term ?? '').trim();

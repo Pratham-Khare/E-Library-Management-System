@@ -1,24 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * MOCK AI PROVIDER
- * ---------------------------------------------------------------------------
  * Generates AI-shaped content offline, with no network call and no quota cost.
- *
- * THIS IS NOT LOREM IPSUM. Output is built from the book's OWN title, authors,
- * categories, page count and description, so a mock summary of "Things Fall
- * Apart" reads about Things Fall Apart and mentions Chinua Achebe. Filler text
- * would make every AI endpoint technically "work" while demonstrating nothing;
- * this makes the feature genuinely demonstrable with the network unplugged.
- *
- * OUTPUT IS DETERMINISTIC. A seeded PRNG derived from the book's id means the
- * same book always produces the same summary — so a cached mock and a fresh
- * one agree, and a demo does not change wording between refreshes.
- *
- * MOCK CONTENT IS NEVER PRESENTED AS REAL. Every response is marked
- * `source: 'mock'` and persisted with `isMock: true`. That honesty is the
- * whole point: a system that silently fabricates model output is worse than
- * one that admits the model was unavailable.
- * ---------------------------------------------------------------------------
  */
 
 import crypto from 'node:crypto';
@@ -26,9 +7,6 @@ import { AI_SUMMARY_LENGTH, AI_LENGTH_WORD_TARGET } from '../../constants/enums.
 
 /**
  * A small deterministic PRNG (mulberry32), seeded from a string.
- *
- * `Math.random()` would make every regeneration differ, which is exactly what
- * a cache and a demo both need not to happen.
  */
 const seededRandom = (seedString) => {
   const hash = crypto.createHash('sha256').update(String(seedString)).digest();
@@ -77,16 +55,10 @@ const describe = (book) => {
   };
 };
 
-/* ===========================================================================
- * Summary
- * ======================================================================== */
+/* Summary */
 
 /**
  * A prose summary, built from real metadata.
- *
- * Length is respected — a SHORT summary is genuinely shorter than a LONG one,
- * so a client rendering both sees a real difference rather than the same
- * paragraph twice.
  */
 export const mockSummary = (book, { length = AI_SUMMARY_LENGTH.MEDIUM } = {}) => {
   const facts = describe(book);
@@ -94,11 +66,6 @@ export const mockSummary = (book, { length = AI_SUMMARY_LENGTH.MEDIUM } = {}) =>
 
   /**
    * Attribution is a COMPLETE SENTENCE, not a dangling clause.
-   *
-   * An earlier version opened with "Written by X, <Title> " and then appended
-   * the catalogue blurb, producing "Written by Chinua Achebe, Things Fall
-   * Apart Okonkwo is a wealthy warrior…" — grammatical nonsense. Keeping the
-   * attribution self-contained means anything can follow it cleanly.
    */
   const opener = facts.authorList
     ? pick(random, [
@@ -157,9 +124,7 @@ export const mockSummary = (book, { length = AI_SUMMARY_LENGTH.MEDIUM } = {}) =>
   return (parts[length] ?? parts.MEDIUM).join('\n\n');
 };
 
-/* ===========================================================================
- * Key takeaways
- * ======================================================================== */
+/* Key takeaways */
 
 export const mockKeyTakeaways = (book) => {
   const facts = describe(book);
@@ -200,9 +165,7 @@ export const mockKeyTakeaways = (book) => {
   return takeaways.slice(0, 5 + Math.floor(random() * 2));
 };
 
-/* ===========================================================================
- * Simplified summary
- * ======================================================================== */
+/* Simplified summary */
 
 /** Plain-language version, aimed at a younger or non-specialist reader. */
 export const mockSimplified = (book) => {
@@ -227,16 +190,10 @@ export const mockSimplified = (book) => {
   ].join(' ');
 };
 
-/* ===========================================================================
- * Question answering
- * ======================================================================== */
+/* Question answering */
 
 /**
  * Answer a question about a book.
- *
- * Deliberately HEDGED. A mock cannot actually know what page 40 says, and
- * inventing a confident answer would be worse than useless — so the response
- * stays within what the metadata supports and says so plainly.
  */
 export const mockAnswer = (book, question) => {
   const facts = describe(book);
@@ -277,9 +234,7 @@ export const mockAnswer = (book, question) => {
   ].join('');
 };
 
-/* ===========================================================================
- * Recommendations & moderation
- * ======================================================================== */
+/* Recommendations & moderation */
 
 /** A short explanation of why a book was recommended. */
 export const mockRecommendationReason = (book, basedOn = []) => {
@@ -299,11 +254,6 @@ export const mockRecommendationReason = (book, basedOn = []) => {
 
 /**
  * Moderation verdict.
- *
- * Deliberately conservative: a mock cannot judge nuance, so it declines rather
- * than guessing. The heuristic pre-filter has already caught the blatant
- * cases; the ambiguous middle is exactly where a mock has nothing useful to
- * add, and pretending otherwise would silently mis-moderate real reviews.
  */
 export const mockModeration = () => ({
   verdict: 'FLAGGED',

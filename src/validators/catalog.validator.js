@@ -1,16 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * CATALOGUE REQUEST SCHEMAS
- * ---------------------------------------------------------------------------
  * Books, copies, authors, publishers, categories and search.
- *
- * The search schema does the most work: every query value arrives as a string,
- * so `?minRating=4&available=true&yearFrom=1990` has to become a number, a
- * boolean and a number before any of it reaches a MongoDB filter. Doing that
- * here means the service layer never contains a `parseInt`, and — more
- * importantly — a filter can never receive an operator object where it expects
- * a scalar.
- * ---------------------------------------------------------------------------
  */
 
 import { z } from 'zod';
@@ -39,9 +28,7 @@ const isbn = z
   .trim()
   .refine(isValidIsbn, 'Not a valid ISBN — the check digit does not match, which usually means a mistyped or transposed digit');
 
-/* ===========================================================================
- * Books
- * ======================================================================== */
+/* Books */
 
 const bookCore = {
   title: nonEmptyString('Title', { min: 1, max: 500 }),
@@ -96,9 +83,7 @@ export const feedQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 });
 
-/* ===========================================================================
- * Copies
- * ======================================================================== */
+/* Copies */
 
 export const addCopiesSchema = z.object({
   count: z.coerce.number().int().min(1).max(100).default(1),
@@ -120,9 +105,7 @@ export const listCopiesQuery = z.object({
   status: z.enum(COPY_STATUS_VALUES).optional(),
 });
 
-/* ===========================================================================
- * Authors
- * ======================================================================== */
+/* Authors */
 
 export const createAuthorSchema = z.object({
   name: nonEmptyString('Author name', { min: 2, max: 200 }),
@@ -137,9 +120,7 @@ export const updateAuthorSchema = createAuthorSchema
   .partial()
   .refine((data) => Object.keys(data).length > 0, { message: 'Provide at least one field to update' });
 
-/* ===========================================================================
- * Publishers
- * ======================================================================== */
+/* Publishers */
 
 export const createPublisherSchema = z.object({
   name: nonEmptyString('Publisher name', { min: 2, max: 200 }),
@@ -154,9 +135,7 @@ export const updatePublisherSchema = createPublisherSchema
   .partial()
   .refine((data) => Object.keys(data).length > 0, { message: 'Provide at least one field to update' });
 
-/* ===========================================================================
- * Categories
- * ======================================================================== */
+/* Categories */
 
 export const createCategorySchema = z.object({
   name: nonEmptyString('Category name', { min: 2, max: 120 }),
@@ -180,9 +159,7 @@ export const listCategoriesQuery = listQuery.extend({
   parent: z.union([objectId, z.literal('root')]).optional(),
 });
 
-/* ===========================================================================
- * Shared taxonomy queries
- * ======================================================================== */
+/* Shared taxonomy queries */
 
 export const identifierParam = z.object({ identifier: z.string().trim().min(1) });
 
@@ -200,17 +177,10 @@ export const mergeSchema = z.object({
   source: z.string().trim().min(1),
 });
 
-/* ===========================================================================
- * Search
- * ======================================================================== */
+/* Search */
 
 /**
  * The search query.
- *
- * Every value is coerced to its real type here — which is what stops
- * `?available=false` behaving like `?available=true` (the string 'false' is
- * truthy) and what guarantees `minRating` reaches MongoDB as a number rather
- * than a string that would silently match nothing.
  */
 export const searchQuery = z.object({
   /** The free-text term. Omit for a filtered browse. */

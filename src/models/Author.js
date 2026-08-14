@@ -1,7 +1,4 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHOR MODEL
- * ---------------------------------------------------------------------------
  * Authors are their own collection rather than a string on Book.
  *
  * That costs a join on every book fetch, and buys three things a string cannot:
@@ -13,7 +10,6 @@
  * `bookCount` is denormalised because author lists are read constantly and a
  * `$lookup`-and-count on every request is a poor trade for a number that
  * changes only when a book is catalogued.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -69,9 +65,7 @@ const authorSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /** Author search, and the alphabetical browse list. */
 authorSchema.index({ name: 'text' }, { name: 'author_text_search' });
@@ -79,9 +73,7 @@ authorSchema.index({ name: 1 });
 /** "Most prolific authors" on the analytics dashboard. */
 authorSchema.index({ bookCount: -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 /** "1930–2013", or "1930–" for a living author. Null when the years are unknown. */
 authorSchema.virtual('lifespan').get(function lifespan() {
@@ -89,9 +81,7 @@ authorSchema.virtual('lifespan').get(function lifespan() {
   return `${this.birthYear}–${this.deathYear ?? ''}`;
 });
 
-/* ===========================================================================
- * Hooks
- * ======================================================================== */
+/* Hooks */
 
 /**
  * Generate a unique slug from the name.

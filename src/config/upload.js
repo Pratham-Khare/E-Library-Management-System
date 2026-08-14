@@ -1,23 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * FILE UPLOAD & STORAGE CONFIGURATION
- * ---------------------------------------------------------------------------
  * Three categories of file, each with its own size cap and allow-list:
- *
- *   cover  — book jacket images. Publicly served.
- *   ebook  — the actual PDF/EPUB. NEVER publicly served; access requires an
- *            active digital loan and goes through a streaming controller.
- *   avatar — member profile pictures.
- *
- * Two layers of type checking, because either alone is insufficient:
- *
- *   1. The DECLARED MIME type (from the Content-Type of the upload part) is
- *      checked against the allow-list. Cheap, and rejects most mistakes.
- *   2. The file's MAGIC NUMBER — its first few bytes — is checked against the
- *      declared type. This is what stops someone renaming `payload.exe` to
- *      `book.pdf` and declaring `application/pdf`. Step 1 alone trusts the
- *      client; step 2 does not.
- * ---------------------------------------------------------------------------
  */
 
 import path from 'node:path';
@@ -47,12 +29,6 @@ export const directoriesToEnsure = Object.freeze(Object.values(paths));
 /**
  * Magic-number signatures, keyed by MIME type. Each entry lists the byte
  * prefixes that identify a genuine file of that type.
- *
- *   JPEG  FF D8 FF
- *   PNG   89 50 4E 47 0D 0A 1A 0A
- *   WEBP  RIFF ....  WEBP   (bytes 0-3 and 8-11)
- *   PDF   %PDF
- *   EPUB  PK\x03\x04  (it is a ZIP container)
  */
 export const magicNumbers = Object.freeze({
   'image/jpeg': [[0xff, 0xd8, 0xff]],
@@ -78,12 +54,6 @@ export const extensionFor = Object.freeze({
 
 /**
  * Per-category upload rules.
- *
- *   field         — the multipart form field name the client must use.
- *   maxSizeBytes  — rejected by multer before the file is fully buffered.
- *   allowedTypes  — declared MIME allow-list.
- *   destination   — where accepted files land.
- *   publiclyServed— whether the file is reachable via a static route.
  */
 export const categories = Object.freeze({
   cover: Object.freeze({
@@ -126,9 +96,7 @@ export const categories = Object.freeze({
 /** Look up a category's rules by name. */
 export const categoryFor = (name) => categories[name];
 
-/* ===========================================================================
- * Text extraction (feeds the AI summariser)
- * ======================================================================== */
+/* Text extraction (feeds the AI summariser) */
 
 export const extraction = Object.freeze({
   enabled: env.EXTRACT_EBOOK_TEXT,
@@ -148,9 +116,7 @@ export const extraction = Object.freeze({
   timeoutMs: 60_000,
 });
 
-/* ===========================================================================
- * Streaming (secured ebook reader)
- * ======================================================================== */
+/* Streaming (secured ebook reader) */
 
 export const streaming = Object.freeze({
   /** Bytes returned when a client sends an open-ended Range header. */
@@ -164,10 +130,6 @@ export const streaming = Object.freeze({
 /**
  * Filenames are always generated, never taken from the client:
  *   <uuid><ext>   e.g. 7f3c1e2a-....pdf
- *
- * The original name is preserved in the database for display and download.
- * Trusting a client-supplied filename invites path traversal (`../../.env`),
- * collisions, and unpleasant surprises from non-ASCII names on Windows.
  */
 export const naming = Object.freeze({
   strategy: 'uuid',
@@ -176,16 +138,8 @@ export const naming = Object.freeze({
 
 /**
  * PROVIDER NOTE — moving to cloud storage
- * ---------------------------------------
  * services/storage/ defines a StorageProvider interface (save, read, delete,
  * stat, createReadStream, urlFor). LocalDiskProvider implements it.
- *
- * Adding S3 means writing one more implementation of that interface and
- * setting STORAGE_PROVIDER=s3 — no controller, service or model changes,
- * because nothing above the storage layer knows where bytes physically live.
- *
- * Local disk is the default because it needs no credentials and no network,
- * which is the right trade for a single-instance deployment.
  */
 
 export default Object.freeze({

@@ -1,13 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * HTTP STATUS CODES
- * ---------------------------------------------------------------------------
  * Named constants instead of bare numbers. `res.status(HTTP_STATUS.CONFLICT)`
  * says why; `res.status(409)` makes the reader look it up.
- *
- * Only the codes this API actually returns are listed — an exhaustive table
- * would be noise.
- * ---------------------------------------------------------------------------
  */
 
 export const HTTP_STATUS = Object.freeze({

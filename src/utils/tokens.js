@@ -1,20 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * JWT SIGNING & VERIFICATION
- * ---------------------------------------------------------------------------
  * All token minting and checking in one place, so no route can accidentally
  * sign with the wrong secret or skip a claim check.
- *
- * Four token types, each with its own secret (see config/jwt.js for why that
- * separation matters). Every token also carries a `type` claim that is checked
- * on verification — belt and braces, so even if two types ever shared a secret
- * by mistake, a download token still could not be presented as an access token.
- *
- * `algorithms: ['HS256']` on verify is a real security control, not a
- * formality: without it, jsonwebtoken would honour the `alg` header supplied
- * by the token itself, and a forged token claiming `alg: none` would verify
- * with no signature at all.
- * ---------------------------------------------------------------------------
  */
 
 import jwt from 'jsonwebtoken';
@@ -25,32 +11,16 @@ import { ERROR_CODES } from '../constants/errorCodes.js';
 
 export { TOKEN_TYPES };
 
-/* ===========================================================================
- * Signing
- * ======================================================================== */
+/* Signing */
 
 /**
  * Sign a token of a given type.
- *
- * @param {string} type One of TOKEN_TYPES.
- * @param {object} payload Claims to embed. Keep it SMALL — a JWT is sent on
- *   every request, and it is not encrypted, merely signed. Anything in here is
- *   readable by anyone holding the token.
- * @returns {string}
  */
 export const signToken = (type, payload) =>
   jwt.sign({ ...payload, type }, jwtConfig.secretFor(type), jwtConfig.signOptions(type));
 
 /**
  * Mint an access token.
- *
- * Carries the role so `authorize()` can make a decision without a database
- * round-trip on every request. The trade-off is that a role change does not
- * take effect until the token expires — bounded to 15 minutes, and the
- * authenticate middleware re-reads the user anyway for status and
- * password-change checks, so a suspended account is cut off immediately.
- *
- * @param {{ id: string, role: string, membershipType: string }} user
  */
 export const signAccessToken = (user) =>
   signToken(TOKEN_TYPES.ACCESS, {
@@ -61,26 +31,12 @@ export const signAccessToken = (user) =>
 
 /**
  * Mint a password-reset token.
- *
- * The JWT is only half the mechanism: a matching hashed record is stored in
- * PasswordResetToken and marked used on redemption. The JWT alone could not be
- * single-use, because a signed token is valid until it expires no matter how
- * many times it is presented. The database row is what makes redemption final.
- *
- * @param {string} userId
- * @param {string} nonce Ties this JWT to its database record.
  */
 export const signResetToken = (userId, nonce) =>
   signToken(TOKEN_TYPES.RESET, { sub: String(userId), nonce });
 
 /**
  * Mint a short-lived signed download token for an ebook.
- *
- * Lets a client hand a URL straight to a browser's PDF viewer, which cannot
- * attach an Authorization header. The capability is scoped to one asset and
- * expires in minutes, so a leaked URL is worth very little.
- *
- * @param {{ userId: string, assetId: string, loanId: string }} params
  */
 export const signDownloadToken = ({ userId, assetId, loanId }) =>
   signToken(TOKEN_TYPES.DOWNLOAD, {
@@ -90,20 +46,10 @@ export const signDownloadToken = ({ userId, assetId, loanId }) =>
     nonce: crypto.randomBytes(8).toString('hex'),
   });
 
-/* ===========================================================================
- * Verification
- * ======================================================================== */
+/* Verification */
 
 /**
  * Verify a token and confirm it is of the expected type.
- *
- * Throws an ApiError rather than letting the raw jsonwebtoken error escape, so
- * callers get a stable `code` and the client can distinguish "expired, refresh
- * and retry" from "invalid, send the user to login".
- *
- * @param {string} type Expected token type.
- * @param {string} token The raw JWT.
- * @returns {object} The decoded payload.
  */
 export const verifyToken = (type, token) => {
   let decoded;
@@ -140,19 +86,10 @@ export const verifyAccessToken = (token) => verifyToken(TOKEN_TYPES.ACCESS, toke
 export const verifyResetToken = (token) => verifyToken(TOKEN_TYPES.RESET, token);
 export const verifyDownloadToken = (token) => verifyToken(TOKEN_TYPES.DOWNLOAD, token);
 
-/* ===========================================================================
- * Helpers
- * ======================================================================== */
+/* Helpers */
 
 /**
  * Pull the token out of an `Authorization: Bearer <token>` header.
- *
- * Returns null rather than throwing so the caller decides whether a missing
- * token is an error — optional authentication is a real case (a public book
- * listing that shows "in your favourites" only when signed in).
- *
- * @param {import('express').Request} req
- * @returns {string|null}
  */
 export const extractBearerToken = (req) => {
   const header = req.headers.authorization;
@@ -181,9 +118,6 @@ export const decodeTokenUnsafe = (token) => {
  * Convert a duration string ("15m", "7d") into an absolute expiry Date.
  * Used to compute the `expiresAt` stored alongside a refresh token, which must
  * match the JWT's own expiry or the two disagree about when a session ends.
- *
- * @param {string} durationString
- * @returns {Date}
  */
 export const expiryFromDuration = (durationString) => {
   const match = /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w|y)?$/i.exec(String(durationString).trim());

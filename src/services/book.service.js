@@ -1,18 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
  * BOOK SERVICE — catalogue and physical inventory
- * ---------------------------------------------------------------------------
  * Creating and maintaining bibliographic records, and managing the individual
  * copies on the shelves.
- *
- * The recurring theme here is KEEPING DENORMALISED COUNTERS HONEST. Book
- * carries `inventory.availableCopies`, and Author/Publisher/Category each
- * carry a `bookCount`. Every one of those is a cache of something derivable,
- * kept because search reads them on every request. So every write path that
- * could invalidate one has to update it — and every counter also has a
- * recompute-from-source function, so a missed update is a temporary
- * discrepancy rather than permanent corruption.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -37,20 +26,10 @@ const DEFAULT_POPULATE = [
   { path: 'categories', select: 'name slug ancestors depth' },
 ];
 
-/* ===========================================================================
- * Reference validation
- * ======================================================================== */
+/* Reference validation */
 
 /**
  * Verify that every referenced author, publisher and category exists.
- *
- * Mongoose does NOT enforce referential integrity — `ref` only tells `populate`
- * where to look. Without this check a book can be created pointing at a
- * category id that never existed, and the failure surfaces much later as a
- * blank field on a book page, far from its cause.
- *
- * All three checks run concurrently: they are independent, and running them in
- * sequence would triple the latency of every book creation for no reason.
  */
 const validateReferences = async ({ authors, publisher, categories }) => {
   const problems = [];
@@ -91,12 +70,6 @@ const validateReferences = async ({ authors, publisher, categories }) => {
 /**
  * Adjust the denormalised `bookCount` on every taxonomy record a book
  * references.
- *
- * Called with `delta: +1` when a book is added and `-1` when it is removed, so
- * an author page can show "12 books" without counting them on every request.
- * Failures are logged rather than thrown: a wrong count is cosmetic and gets
- * corrected by the nightly reconciliation, whereas failing the book creation
- * over it would be a far worse outcome.
  */
 const adjustTaxonomyCounts = async ({ authors, publisher, categories }, delta) => {
   const operations = [];
@@ -120,13 +93,10 @@ const adjustTaxonomyCounts = async ({ authors, publisher, categories }, delta) =
   }
 };
 
-/* ===========================================================================
- * Reading
- * ======================================================================== */
+/* Reading */
 
 /**
  * Fetch one book by id or slug.
- * @param {object} [options]
  * @param {boolean} [options.includeArchived] Staff may view archived titles.
  * @param {boolean} [options.countView] Increment the view counter.
  */
@@ -174,15 +144,10 @@ export const list = async (query, viewer = null) => {
   return paginateQuery(Book, filter, { sort, page, limit, skip, populate: DEFAULT_POPULATE });
 };
 
-/* ===========================================================================
- * Writing
- * ======================================================================== */
+/* Writing */
 
 /**
  * Catalogue a new book.
- *
- * Optionally creates its physical copies in the same call, since "add a book"
- * almost always means "add a book and the three copies we bought".
  */
 export const create = async (data, actor) => {
   await validateReferences(data);
@@ -231,10 +196,6 @@ export const create = async (data, actor) => {
 
 /**
  * Update a book.
- *
- * Taxonomy counters are adjusted by DIFFERENCE, not by blanket decrement and
- * re-increment: moving a book from [A, B] to [B, C] should leave B untouched,
- * and the naive approach would briefly show B one book short.
  */
 export const update = async (identifier, data, actor) => {
   const book = await getByIdOrSlug(identifier, { includeArchived: true });
@@ -280,13 +241,6 @@ export const update = async (identifier, data, actor) => {
 
 /**
  * Soft-delete a book.
- *
- * Never a hard delete: loans reference this document, and removing it would
- * orphan the library's circulation history — which is the library's permanent
- * record, not a cataloguer's to erase.
- *
- * Refused while copies are out with borrowers; those books have to come back
- * before the title leaves the catalogue.
  */
 export const remove = async (identifier, actor) => {
   const book = await getByIdOrSlug(identifier, { includeArchived: true });
@@ -335,17 +289,10 @@ export const restore = async (identifier) => {
   return book;
 };
 
-/* ===========================================================================
- * Physical copies
- * ======================================================================== */
+/* Physical copies */
 
 /**
  * Add copies to a book.
- *
- * Accession numbers are generated sequentially. Generated ONE AT A TIME rather
- * than as a batch because each is derived from the current document count —
- * computing ten up front from a single count would produce ten identical
- * numbers, nine of which the unique index would reject.
  */
 export const addCopies = async (bookId, { count = 1, shelfLocation, condition, cost, source }, actor) => {
   const book = await Book.findOne({ _id: bookId, isDeleted: false });
@@ -392,11 +339,6 @@ export const listCopies = async (bookId, query = {}) => {
   /**
    * Populate the current borrower only when the Loan model is actually
    * registered.
-   *
-   * Mongoose resolves a `ref` by name AT QUERY TIME, and throws
-   * MissingSchemaError if that model was never loaded. Guarding here makes
-   * this query robust to module import order — a real hazard in any codebase
-   * where models reference each other in both directions.
    */
   if (mongoose.models.Loan) {
     queryBuilder = queryBuilder.populate({
@@ -413,11 +355,6 @@ export const listCopies = async (bookId, query = {}) => {
 
 /**
  * Change a copy's status — mark it damaged, lost or withdrawn.
- *
- * Refuses to move a copy that is currently ON_LOAN. That transition belongs to
- * the circulation engine (return, or mark-lost), which also closes the loan
- * and raises any fine; changing the status here would leave an active loan
- * pointing at a copy that is no longer out.
  */
 export const updateCopyStatus = async (copyId, { status, note, condition }, actor) => {
   const copy = await BookCopy.findById(copyId);
@@ -448,10 +385,6 @@ export const updateCopyStatus = async (copyId, { status, note, condition }, acto
 
 /**
  * Permanently remove a copy record.
- *
- * The one hard delete in the catalogue, and only for a copy that was never
- * borrowed — a mis-scanned barcode entered by mistake. A copy WITH loan
- * history is withdrawn instead, because deleting it would orphan those loans.
  */
 export const removeCopy = async (copyId) => {
   const copy = await BookCopy.findById(copyId);
@@ -479,17 +412,10 @@ export const removeCopy = async (copyId) => {
   return { inventory };
 };
 
-/* ===========================================================================
- * Discovery feeds
- * ======================================================================== */
+/* Discovery feeds */
 
 /**
  * Books similar to a given one.
- *
- * A deliberately cheap heuristic — shared categories and authors, ranked by
- * overlap — rather than an AI call. It costs one aggregation, works for every
- * book instantly, and spends nothing from the AI budget. The AI recommender
- * builds on top of this rather than replacing it.
  */
 export const findSimilar = async (identifier, limit = config.library.catalog.recommendationLimit) => {
   const book = await getByIdOrSlug(identifier);

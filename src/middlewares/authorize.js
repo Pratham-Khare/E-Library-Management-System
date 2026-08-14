@@ -1,20 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * AUTHORISATION MIDDLEWARE
- * ---------------------------------------------------------------------------
  * Two distinct questions, and conflating them is a classic source of holes:
- *
- *   authorize(...)  — "does this ROLE permit the action at all?"
- *                     A librarian may view any member's loans.
- *
- *   requireOwner()  — "does this record belong to the CALLER?"
- *                     A member may view their OWN loans, and nobody else's.
- *
- * Role checks alone are the common mistake. `GET /users/:id/loans` guarded only
- * by `authenticate` lets any signed-in member read any other member's
- * borrowing history by changing one number in the URL — a real and frequent
- * vulnerability class (IDOR). The ownership guard is what closes it.
- * ---------------------------------------------------------------------------
  */
 
 import { ApiError } from '../utils/ApiError.js';
@@ -25,8 +10,6 @@ import { ROLES, ROLE_RANK, STAFF_ROLES } from '../constants/roles.js';
  * Restrict a route to specific roles.
  *
  *     router.post('/books', authenticate, authorize(ROLES.LIBRARIAN, ROLES.ADMIN), create);
- *
- * @param {...string} allowedRoles
  */
 export const authorize =
   (...allowedRoles) =>
@@ -53,12 +36,6 @@ export const authorize =
 
 /**
  * Require at least a given role, by rank.
- *
- * Prefer this over `authorize(LIBRARIAN, ADMIN)` when the intent is genuinely
- * "librarian and up" — it stays correct if a role is ever inserted into the
- * hierarchy, whereas an explicit list silently excludes the new one.
- *
- * @param {string} minimumRole
  */
 export const requireMinimumRole = (minimumRole) => (req, res, next) => {
   if (!req.user) {
@@ -89,13 +66,6 @@ export const requireAdmin = authorize(ROLES.ADMIN);
 /**
  * Require that the caller owns the resource identified by a route parameter —
  * unless they are staff, who are permitted to act on any member's records.
- *
- *     router.get('/users/:userId/loans', authenticate, requireOwnerOrStaff('userId'), list);
- *
- * `me` is accepted as an alias for the caller's own id and rewritten in place,
- * so a client can call `/users/me/loans` without first knowing its own id.
- *
- * @param {string} [paramName] Route parameter holding the user id.
  */
 export const requireOwnerOrStaff =
   (paramName = 'userId') =>
@@ -128,22 +98,6 @@ export const requireOwnerOrStaff =
 /**
  * Ownership check for resources that are not addressed by user id — a review,
  * a reading list, a loan.
- *
- * Takes a loader that fetches the record and returns the id of its owner. The
- * record is cached on `req.resource` so the handler does not fetch it twice.
- *
- *     router.patch('/reviews/:id',
- *       authenticate,
- *       requireResourceOwner(async (req) => {
- *         const review = await Review.findById(req.params.id);
- *         return review ? { resource: review, ownerId: review.user } : null;
- *       }),
- *       update);
- *
- * @param {(req) => Promise<{resource: object, ownerId: string}|null>} loader
- * @param {object} [options]
- * @param {boolean} [options.allowStaff] Whether staff bypass the check.
- * @param {string} [options.notFoundMessage]
  */
 export const requireResourceOwner =
   (loader, options = {}) =>

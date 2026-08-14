@@ -1,28 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * RATE LIMITER FACTORY
- * ---------------------------------------------------------------------------
  * Builds an express-rate-limit instance from a named group in
  * src/config/rateLimit.js. Routes then read declaratively:
- *
- *     router.post('/login',   rateLimiter('auth'),   login);
- *     router.get('/search',   rateLimiter('search'), search);
- *     router.post('/summary', rateLimiter('ai'),     generateSummary);
- *
- * The policy lives in config; this file only knows how to apply it.
- *
- * THE KEY STRATEGY IS THE INTERESTING PART. Limiters key on IP or on user id,
- * and picking wrong breaks the limit in one of two directions:
- *
- *   IP-keyed for authenticated actions — a whole college behind one NAT
- *   address shares a single bucket, so one heavy user throttles everyone;
- *   meanwhile the person you actually wanted to limit just switches networks.
- *
- *   USER-keyed for unauthenticated actions — impossible. There is no user yet
- *   on a login attempt, which is exactly when limiting matters most.
- *
- * So: anonymous endpoints key on IP, authenticated expensive ones key on user.
- * ---------------------------------------------------------------------------
  */
 
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -32,16 +10,6 @@ import { HTTP_STATUS } from '../constants/httpStatus.js';
 
 /**
  * Derive the bucket key for a request.
- *
- * `ipKeyGenerator` from express-rate-limit is used rather than `req.ip`
- * directly because it normalises IPv6 properly. An IPv6 client is typically
- * handed an entire /56 or /64 range and can mint a fresh address per
- * connection, so keying on the raw address would let them bypass the limiter
- * indefinitely. The helper collapses the range down to one key:
- *
- *     2001:db8:85a3:8d3:1319:8a2e:370:7348  ->  2001:db8:85a3:800::/56
- *
- * IPv4 addresses pass through unchanged.
  */
 const buildKeyGenerator = (strategy) => {
   if (strategy === config.rateLimit.KEY_STRATEGY.USER) {
@@ -80,9 +48,7 @@ const noopMiddleware = (req, res, next) => next();
 /**
  * Build a rate-limiting middleware for a configured group.
  *
- * @param {'global'|'auth'|'search'|'upload'|'ai'} groupName
  * @param {object} [overrides] Per-route tweaks, e.g. `{ max: 3 }`.
- * @returns {import('express').RequestHandler}
  */
 export const rateLimiter = (groupName, overrides = {}) => {
   if (!config.rateLimit.enabled) return noopMiddleware;

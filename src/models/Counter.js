@@ -1,7 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
  * COUNTER — atomic sequence allocation
- * ---------------------------------------------------------------------------
  * Issues gap-free sequential numbers for membership cards and accession
  * numbers, safely under concurrency.
  *
@@ -24,7 +22,6 @@
  * Human-readable sequential numbers are worth this small amount of machinery:
  * `LIB-2026-000042` is read aloud and typed at a physical desk in a way a UUID
  * is not.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -46,10 +43,6 @@ const counterSchema = new Schema(
  *
  * Atomic: concurrent callers are serialised by MongoDB on this one document,
  * so no two ever receive the same number.
- *
- * @param {string} key
- * @param {import('mongoose').ClientSession|null} [session]
- * @returns {Promise<number>}
  */
 counterSchema.statics.next = async function next(key, session = null) {
   const counter = await this.findOneAndUpdate(

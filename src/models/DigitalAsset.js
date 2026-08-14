@@ -1,25 +1,13 @@
 /**
- * ---------------------------------------------------------------------------
- * DIGITAL ASSET MODEL — an ebook file
- * ---------------------------------------------------------------------------
- * Metadata for a PDF or EPUB attached to a book. The bytes live on disk (or in
- * object storage); this row is what the application reasons about.
+ * Metadata for an ebook file. The bytes live on disk; this row is what the
+ * application reasons about.
  *
- * THE FILE IS NEVER SERVED STATICALLY. `storageKey` is an internal path, not a
- * URL, and it is deliberately withheld from every API response. Reading an
- * ebook goes through a controller that verifies an active digital loan and
- * then streams the bytes — because a static mount would let anyone who
- * guessed or shared a URL download the library's entire collection without
- * ever borrowing anything.
+ * The file is NEVER served statically — `storageKey` is an internal path, not
+ * a URL, and is withheld from every response. Reading goes through a
+ * controller that verifies an active digital loan first.
  *
- * `checksum` (SHA-256 of the file) enables deduplication: uploading the same
- * PDF twice should reuse one file on disk rather than storing 40MB again.
- *
- * `extractedText` is the bridge to the AI subsystem. Summarising from a real
- * chapter produces a far better result than summarising from a two-sentence
- * catalogue blurb — and when extraction fails, summaries degrade to metadata
- * rather than the feature breaking.
- * ---------------------------------------------------------------------------
+ * `checksum` deduplicates uploads; `extractedText` feeds the AI subsystem, and
+ * when extraction fails summaries degrade to metadata rather than breaking.
  */
 
 import mongoose from 'mongoose';
@@ -48,15 +36,9 @@ const digitalAssetSchema = new Schema(
     },
 
     /**
-     * Where the bytes live, relative to the storage root.
-     *
-     * A GENERATED name (uuid + extension), never the client's filename.
-     * Trusting an uploaded name invites path traversal (`../../.env`),
-     * collisions between two files called `book.pdf`, and encoding problems
-     * with non-ASCII names on Windows.
-     *
-     * `select: false` so it cannot leak into an API response by accident —
-     * knowing the internal path is a step toward reaching the file directly.
+     * A GENERATED name (uuid + extension), never the client's filename, which
+     * would invite path traversal and collisions. `select: false` so the
+     * internal path cannot leak into a response.
      */
     storageKey: { type: String, required: true, select: false },
 
@@ -67,13 +49,7 @@ const digitalAssetSchema = new Schema(
 
     sizeBytes: { type: Number, required: true, min: 0 },
 
-    /**
-     * SHA-256 of the file contents.
-     *
-     * Two jobs: deduplication (the same PDF uploaded twice reuses one file on
-     * disk), and integrity (a corrupted or truncated upload is detectable
-     * rather than only discovered by a reader).
-     */
+    /** SHA-256: deduplication, and detecting a truncated upload. */
     checksum: { type: String, required: true, index: true },
 
     pageCount: { type: Number, min: 0, default: null },
@@ -94,13 +70,7 @@ const digitalAssetSchema = new Schema(
       index: true,
     },
 
-    /**
-     * Extracted text, truncated to a configured ceiling.
-     *
-     * `select: false` because it can run to hundreds of kilobytes; loading it
-     * on every asset listing would be a serious and entirely pointless
-     * expense. The AI service selects it explicitly when it needs it.
-     */
+    /** `select: false` — this can run to hundreds of KB, and only the AI service needs it. */
     extractedText: { type: String, select: false, default: null },
 
     extractedCharCount: { type: Number, default: 0 },
@@ -120,9 +90,7 @@ const digitalAssetSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /** A book's assets, previews first. */
 digitalAssetSchema.index({ book: 1, isPreview: 1 });
@@ -137,9 +105,7 @@ digitalAssetSchema.index({ checksum: 1, book: 1 });
 /** The extraction worker's queue. */
 digitalAssetSchema.index({ extractionStatus: 1, createdAt: 1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 /** Human-readable size, e.g. "4.2 MB". */
 digitalAssetSchema.virtual('sizeFormatted').get(function sizeFormatted() {
@@ -154,21 +120,14 @@ digitalAssetSchema.virtual('hasExtractedText').get(function hasExtractedText() {
   return this.extractionStatus === EXTRACTION_STATUS.COMPLETED && this.extractedCharCount > 0;
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /** Find an existing upload of the same file, for deduplication. */
 digitalAssetSchema.statics.findByChecksum = function findByChecksum(checksum) {
   return this.findOne({ checksum }).select('+storageKey');
 };
 
-/**
- * Fetch an asset WITH its storage key.
- *
- * The only way to obtain the key, and deliberately explicit: the streaming
- * controller needs it to open the file, and nothing else should.
- */
+/** Fetch an asset WITH its storage key — deliberately explicit; only the streaming controller needs it. */
 digitalAssetSchema.statics.findWithStorageKey = function findWithStorageKey(assetId) {
   return this.findById(assetId).select('+storageKey');
 };

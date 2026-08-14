@@ -1,28 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
  * USER SERIALIZER — the "View" layer for user data
- * ---------------------------------------------------------------------------
  * Converts User documents into the exact shape sent over the wire.
- *
- * This layer exists so that WHAT LEAVES THE SYSTEM is an explicit decision made
- * in one file, rather than an accident of whichever fields happened to be on a
- * document. Returning `user.toJSON()` from a controller is the common
- * shortcut, and it means every field added to the schema later is silently
- * published — including the next one that should not have been.
- *
- * Three audiences, three shapes:
- *
- *   toPublic()  — what ANY user may see about another. Name and avatar only.
- *   toSelf()    — what a user sees about THEMSELVES. Contact details, stats,
- *                 preferences.
- *   toAdmin()   — what STAFF see. Adds suspension details, login history and
- *                 audit timestamps.
- *
- * `passwordHash` and `passwordChangedAt` are `select: false` on the schema, so
- * they are normally absent — but these functions build an explicit allow-list
- * rather than deleting keys from a copy. An allow-list cannot leak a field
- * added tomorrow; a deny-list can, and eventually does.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -38,10 +16,6 @@ const avatarUrl = (avatar) =>
 
 /**
  * Normalise a Mongoose Map field to a plain object.
- *
- * A hydrated document gives a real `Map`; a `.lean()` query gives a plain
- * object. Serializers see both — list endpoints are lean for speed, single
- * fetches are hydrated — so every Map field has to tolerate either form.
  */
 const toPlainMap = (value) => {
   if (!value) return {};
@@ -137,7 +111,6 @@ export const toSelf = (user) => {
      * a PLAIN OBJECT when the query used `.lean()` — and `Object.fromEntries`
      * requires an iterable, so calling it on the lean form throws. List
      * endpoints are lean for speed while single-record fetches are hydrated,
-     * so both shapes genuinely reach this line.
      */
     notificationPreferences: toPlainMap(user.notificationPreferences),
 
@@ -176,12 +149,6 @@ export const toAdmin = (user) => {
 
 /**
  * Pick the right shape for the caller.
- *
- * Centralising the decision means a handler cannot accidentally serialise a
- * member's private data into a public response by choosing the wrong function.
- *
- * @param {object} user The user being serialised.
- * @param {object|null} viewer The authenticated caller, if any.
  */
 export const forViewer = (user, viewer) => {
   if (!user) return null;
@@ -203,10 +170,6 @@ export const listForAdmin = (users) => users.map(toAdmin);
 
 /**
  * The authentication response: the user plus their freshly minted tokens.
- *
- * `expiresIn` is included so a client can schedule a refresh proactively
- * instead of waiting for a 401 and retrying — which is the difference between
- * a seamless session and a visible stutter every fifteen minutes.
  */
 export const toAuthResponse = (user, tokens) => ({
   user: toSelf(user),

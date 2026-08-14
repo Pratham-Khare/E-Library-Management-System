@@ -1,7 +1,4 @@
 /**
- * ---------------------------------------------------------------------------
- * AI USAGE LOG
- * ---------------------------------------------------------------------------
  * One row per AI request — including the ones that cost nothing.
  *
  * Logging cache hits and mock responses alongside real calls is the point:
@@ -13,7 +10,6 @@
  * This is also the SOURCE OF TRUTH for quota enforcement. The count of rows
  * where `source: 'live'` is what the quota guard compares against the budget,
  * reconciled periodically against the provider's own usage endpoint.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -57,9 +53,7 @@ const aiUsageLogSchema = new Schema(
   { timestamps: true }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /**
  * THE QUOTA QUERY: how many live calls have we made?
@@ -72,9 +66,7 @@ aiUsageLogSchema.index({ source: 1, createdAt: -1 });
 /** Per-user daily cap enforcement. */
 aiUsageLogSchema.index({ user: 1, source: 1, createdAt: -1 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /** Live calls spent so far. The number the quota guard checks. */
 aiUsageLogSchema.statics.liveCallCount = function liveCallCount() {

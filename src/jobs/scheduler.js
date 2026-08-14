@@ -1,23 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * SCHEDULED JOBS
- * ---------------------------------------------------------------------------
  * node-cron tasks: overdue detection and fine accrual, due-date reminders,
  * digital-loan expiry, and cleanup.
- *
- * EVERY JOB IS IDEMPOTENT. A cron task will eventually run twice — a restart
- * at the wrong moment, a manual trigger, two instances briefly overlapping —
- * and a fine-accrual job that is not idempotent doubles someone's debt when
- * that happens. So the overdue job UPDATES an existing fine rather than
- * creating a second one, and the reminder job records that it sent.
- *
- * Jobs also guard against OVERLAPPING RUNS. An overdue sweep across a large
- * library can take longer than the interval between runs, and two concurrent
- * sweeps would compete over the same documents.
- *
- * Set CRON_ENABLED=false to disable all of it — necessary when running
- * multiple instances, where only one should be doing scheduled writes.
- * ---------------------------------------------------------------------------
  */
 
 import cron from 'node-cron';
@@ -41,11 +24,6 @@ const running = new Set();
 
 /**
  * Wrap a job with logging, timing, error containment and an overlap guard.
- *
- * ERROR CONTAINMENT MATTERS MOST. An unhandled rejection inside a cron
- * callback becomes a process-level unhandled rejection, which this
- * application treats as fatal — so one malformed record could take the whole
- * server down at 00:30 with nobody watching.
  */
 const wrapJob = (name, fn) => async () => {
   if (running.has(name)) {
@@ -72,19 +50,10 @@ const wrapJob = (name, fn) => async () => {
   }
 };
 
-/* ===========================================================================
- * Overdue detection and fine accrual
- * ======================================================================== */
+/* Overdue detection and fine accrual */
 
 /**
  * Flip open loans past their due date to OVERDUE and accrue fines.
- *
- * Uses a CURSOR rather than loading every overdue loan into memory: a library
- * with years of history could have thousands, and there is no reason to hold
- * them all at once.
- *
- * The fine assessment is idempotent (see `assessOverdueFine`), so running this
- * twice in one day updates the same fine rather than creating a second.
  */
 export const runOverdueCheck = async () => {
   const cursor = Loan.findOverdueCursor();
@@ -150,16 +119,10 @@ export const runOverdueCheck = async () => {
   return { markedOverdue, finesAssessed, notified, usersAffected: affectedUsers.size };
 };
 
-/* ===========================================================================
- * Due-date reminders
- * ======================================================================== */
+/* Due-date reminders */
 
 /**
  * Remind members whose loans are due soon.
- *
- * Loans are GROUPED PER MEMBER, so someone with four books due this week gets
- * one email listing all four rather than four separate emails. That is the
- * difference between a useful reminder and something people filter away.
  */
 export const runDueReminders = async () => {
   const loans = await Loan.findDueSoon(config.library.reminders.dueSoonDaysBefore);
@@ -207,16 +170,10 @@ export const runDueReminders = async () => {
   return { reminded, loans: loans.length };
 };
 
-/* ===========================================================================
- * Digital-loan expiry
- * ======================================================================== */
+/* Digital-loan expiry */
 
 /**
  * Expire digital loans past their term and release their licences.
- *
- * Runs hourly rather than nightly: a licence held for up to 23 extra hours
- * after expiry is a licence nobody else can use, and digital stock is
- * deliberately scarce.
  */
 export const runDigitalExpiry = async () => {
   const expired = await Loan.findExpiredDigital();
@@ -239,18 +196,11 @@ export const runDigitalExpiry = async () => {
 };
 
 
-/* ===========================================================================
- * AI usage reconciliation
- * ======================================================================== */
+/* AI usage reconciliation */
 
 /**
  * Reconcile the locally counted AI call total against the provider's own
  * figure.
- *
- * The local count could drift — another deployment might share the token, or
- * a call might be billed upstream after failing locally. On a budget of 100
- * calls for the token's entire lifetime, an over-optimistic local count means
- * spending calls that are not actually there.
  */
 export const runAiUsageSync = async () => {
   const { syncUsage } = await import('../services/ai.service.js');
@@ -258,21 +208,10 @@ export const runAiUsageSync = async () => {
   return result.synced ? { used: result.used, remaining: result.remaining } : { skipped: true };
 };
 
-/* ===========================================================================
- * Cleanup
- * ======================================================================== */
+/* Cleanup */
 
 /**
  * Housekeeping.
- *
- * TTL indexes already remove expired tokens, but MongoDB's reaper runs about
- * once a minute and only handles documents whose TTL field is set — a revoked
- * token with a far-future expiry would linger for its full week. This sweeps
- * those.
- *
- * It also RECONCILES the denormalised counters. Every write path maintains
- * them, but a missed update anywhere would otherwise persist forever; a
- * nightly recompute means drift is bounded to one day rather than permanent.
  */
 export const runCleanup = async () => {
   const now = new Date();
@@ -288,10 +227,6 @@ export const runCleanup = async () => {
 
   /**
    * Reconcile member fine totals.
-   *
-   * Only members who currently have a PENDING fine or a non-zero cached total
-   * are examined — walking every user nightly would be pointless work in a
-   * library where most owe nothing.
    */
   const usersWithFines = await Fine.distinct('user', { status: 'PENDING' });
   const usersWithCachedTotals = await User.distinct('_id', {
@@ -326,9 +261,7 @@ export const runCleanup = async () => {
   };
 };
 
-/* ===========================================================================
- * Registration
- * ======================================================================== */
+/* Registration */
 
 /**
  * Register every scheduled job.
@@ -385,9 +318,6 @@ export const stopScheduler = () => {
 
 /**
  * Run a job by name, on demand.
- *
- * Exposed to admins so the overdue sweep can be triggered without waiting for
- * midnight — and, just as usefully, so it can be exercised in a demo.
  */
 export const runJobNow = async (name) => {
   const handlers = {

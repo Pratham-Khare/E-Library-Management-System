@@ -1,17 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * CATEGORY SERVICE — the subject tree
- * ---------------------------------------------------------------------------
  * Categories are not built from the taxonomy factory because the hierarchy
  * makes their operations genuinely different: creating one computes an
  * ancestor path, moving one rewrites every descendant's path, and deleting one
- * has to decide what happens to the branch beneath it.
- *
- * `subtreeIds()` is the function the rest of the system depends on: it turns
- * "books in Science" into a filter that also matches books tagged only with
- * "Machine Learning", four levels down. Without it, category filtering would
- * only ever match exact tags and the tree would be decorative.
- * ---------------------------------------------------------------------------
  */
 
 import { Category } from '../models/Category.js';
@@ -54,10 +45,6 @@ export const list = async (query) => {
 
 /**
  * Create a category, optionally under a parent.
- *
- * The ancestor path and depth are computed by the model's pre-save hook, which
- * also rejects a cycle — so this only has to validate the parent exists and
- * give a readable error if it does not.
  */
 export const create = async (data) => {
   if (data.parent) {
@@ -90,11 +77,6 @@ export const create = async (data) => {
 
 /**
  * Update a category, including moving it to a different parent.
- *
- * A MOVE IS THE EXPENSIVE CASE. Because ancestors are materialised on every
- * descendant, re-parenting a node invalidates the stored path of everything
- * beneath it — so `rebuildDescendantAncestors()` rewrites the subtree in one
- * bulk operation. This is the cost that buys single-query subtree reads.
  */
 export const update = async (identifier, data) => {
   const category = await getByIdOrSlug(identifier);
@@ -139,11 +121,6 @@ export const update = async (identifier, data) => {
 
 /**
  * Soft-delete a category.
- *
- * Refused while it holds books OR has children. Deleting a node with children
- * would strand the whole branch: the children keep an ancestor id pointing at
- * a deleted record, so they vanish from the tree without ever being deleted
- * themselves — a far more confusing outcome than an error.
  */
 export const remove = async (identifier) => {
   const category = await getByIdOrSlug(identifier);
@@ -175,14 +152,6 @@ export const remove = async (identifier) => {
 
 /**
  * Books in a category, INCLUDING every descendant category by default.
- *
- * This is the behaviour a user expects: browsing "Science" should surface a
- * machine-learning textbook filed four levels down, not an empty page because
- * nothing was tagged with the broad category directly.
- *
- * @param {string} identifier
- * @param {object} query
- * @param {boolean} [query.includeDescendants] Defaults to true.
  */
 export const listBooks = async (identifier, query) => {
   const category = await getByIdOrSlug(identifier);
@@ -224,10 +193,6 @@ export const listChildren = async (identifier) => {
 
 /**
  * The breadcrumb trail from the root down to this category.
- *
- * `ancestors` is stored root-first, so the trail needs no traversal — one
- * query fetches every level, and the order is preserved by re-sorting against
- * the stored array (`$in` does not guarantee result order).
  */
 export const getBreadcrumb = async (identifier) => {
   const category = await getByIdOrSlug(identifier);

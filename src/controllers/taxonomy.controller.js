@@ -1,13 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * TAXONOMY CONTROLLER — authors, publishers and categories
- * ---------------------------------------------------------------------------
  * Authors and publishers share their CRUD through a service factory (see
  * taxonomy.service.js), so their controllers are produced by a small factory
  * too. Categories get explicit handlers, because the tree gives them
- * operations — subtree listing, breadcrumbs, moving a node — that the other
- * two do not have.
- * ---------------------------------------------------------------------------
  */
 
 import { createTaxonomyService } from '../services/taxonomy.service.js';
@@ -27,9 +22,7 @@ import {
   listBookSummaries,
 } from '../serializers/catalog.serializer.js';
 
-/* ===========================================================================
- * Service instances
- * ======================================================================== */
+/* Service instances */
 
 export const authorService = createTaxonomyService({
   model: Author,
@@ -49,16 +42,11 @@ export const publisherService = createTaxonomyService({
   sortableFields: ['name', 'bookCount', 'createdAt', 'foundedYear'],
 });
 
-/* ===========================================================================
- * Controller factory
- * ======================================================================== */
+/* Controller factory */
 
 /**
  * Build the seven handlers a taxonomy resource needs.
  * @param {object} service A service from createTaxonomyService.
- * @param {(record: object) => object} serialize
- * @param {(records: object[]) => object[]} serializeList
- * @param {string} label
  */
 const makeTaxonomyController = (service, serialize, serializeList, label) => ({
   list: asyncHandler(async (req, res) => {
@@ -112,9 +100,7 @@ export const publisherController = makeTaxonomyController(
   'publisher'
 );
 
-/* ===========================================================================
- * Categories
- * ======================================================================== */
+/* Categories */
 
 export const categoryController = {
   /** The whole tree as nested objects, for a browse page. */

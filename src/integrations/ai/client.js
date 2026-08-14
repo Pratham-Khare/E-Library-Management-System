@@ -1,25 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * AI API CLIENT
- * ---------------------------------------------------------------------------
  * A thin HTTP client for the chat-completions proxy, using Node's built-in
  * `fetch` — no axios, because there is nothing here axios would do better.
- *
- * THREE PROTECTIONS, each solving a distinct failure mode:
- *
- *   TIMEOUT — an `AbortController` bounds every request. Without it a hung
- *   upstream holds an Express handler open indefinitely, and enough of those
- *   exhaust the connection pool.
- *
- *   SELECTIVE RETRY — only failures that might succeed on a second attempt are
- *   retried: network errors, timeouts, 5xx. A 400, 401 or 404 is retried
- *   NEVER, because the same request will fail identically and on a 100-call
- *   lifetime budget a pointless retry is a call we cannot get back.
- *
- *   CIRCUIT BREAKER — after repeated failures the circuit opens and requests
- *   fail immediately instead of each waiting out a 30-second timeout. One dead
- *   upstream should not make every page in the application slow.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../../config/index.js';
@@ -27,9 +8,7 @@ import logger from '../../utils/logger.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ERROR_CODES } from '../../constants/errorCodes.js';
 
-/* ===========================================================================
- * Circuit breaker
- * ======================================================================== */
+/* Circuit breaker */
 
 const breaker = {
   failures: 0,
@@ -75,18 +54,12 @@ const breaker = {
 
 export const circuitState = () => breaker.state();
 
-/* ===========================================================================
- * Request execution
- * ======================================================================== */
+/* Request execution */
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Exponential backoff with jitter.
- *
- * The jitter is not decoration: without it, several requests that failed
- * together retry together, producing a synchronised spike against an upstream
- * that is probably already struggling.
  */
 const backoffDelay = (attempt) => {
   const base = config.ai.retry.baseDelayMs * config.ai.retry.factor ** attempt;
@@ -100,10 +73,6 @@ const isRetryable = (statusCode) =>
 
 /**
  * Map an upstream error onto a typed ApiError.
- *
- * The upstream's documented codes are translated into ours so callers can
- * branch on a stable value — and, importantly, so the AI service can tell
- * "bad token" from "quota exhausted" and decide whether to fall back to mock.
  */
 const translateError = (statusCode, body) => {
   const upstreamCode = body?.error?.code;
@@ -142,13 +111,6 @@ const translateError = (statusCode, body) => {
 
 /**
  * Send a chat completion request.
- *
- * @param {Array<{role: string, content: string}>} messages
- * @param {object} [options]
- * @param {number} [options.maxTokens]
- * @param {number} [options.temperature]
- * @param {boolean} [options.jsonMode] Ask the model for JSON.
- * @returns {Promise<{content: string, usage: object, latencyMs: number}>}
  */
 export const chat = async (messages, options = {}) => {
   if (breaker.isOpen()) {
@@ -283,10 +245,6 @@ export const chat = async (messages, options = {}) => {
 
 /**
  * Ask the provider how much of OUR quota is left.
- *
- * Used by the reconciliation job so the locally counted total cannot drift
- * from the provider's own view — a local count could miss calls made from
- * another deployment sharing the token.
  */
 export const fetchUsage = async () => {
   const controller = new AbortController();

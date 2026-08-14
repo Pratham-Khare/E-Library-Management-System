@@ -1,10 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
  * ADMIN ROUTES  —  /api/v1/admin
- * ---------------------------------------------------------------------------
  * Analytics, reports, the audit log, bulk import/export, and manual job
  * triggers. Staff-only throughout; a few operations are admin-only.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -57,11 +54,6 @@ const jobParam = z.object({
 
 /**
  * CSV upload, held in memory.
- *
- * Memory rather than disk here specifically because a CSV is small, is parsed
- * immediately and is never retained — writing it to disk would create a
- * temporary file to clean up for no benefit. Ebooks use disk storage for
- * exactly the opposite reason.
  */
 const csvUpload = multer({
   storage: multer.memoryStorage(),
@@ -75,9 +67,7 @@ const csvUpload = multer({
   },
 }).single('file');
 
-/* ===========================================================================
- * Dashboard
- * ======================================================================== */
+/* Dashboard */
 
 /**
  * @openapi
@@ -139,9 +129,7 @@ router.get(
   })
 );
 
-/* ===========================================================================
- * Reports
- * ======================================================================== */
+/* Reports */
 
 /**
  * @openapi
@@ -218,9 +206,7 @@ router.get(
   )
 );
 
-/* ===========================================================================
- * Audit log
- * ======================================================================== */
+/* Audit log */
 
 /**
  * @openapi
@@ -260,9 +246,7 @@ router.get(
   })
 );
 
-/* ===========================================================================
- * Bulk import / export
- * ======================================================================== */
+/* Bulk import / export */
 
 /**
  * @openapi
@@ -390,9 +374,7 @@ router.get(
   })
 );
 
-/* ===========================================================================
- * Manual job triggers
- * ======================================================================== */
+/* Manual job triggers */
 
 /**
  * @openapi

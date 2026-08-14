@@ -1,13 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * READING LIST SERVICE
- * ---------------------------------------------------------------------------
  * Favourites, custom shelves, and sharing.
- *
- * The four default shelves are created on registration and are STRUCTURAL:
- * they cannot be renamed or deleted, so every client can assume a FAVORITES
- * list exists rather than creating one defensively at each call site.
- * ---------------------------------------------------------------------------
  */
 
 import logger from '../utils/logger.js';
@@ -19,10 +11,6 @@ import { READING_LIST_TYPE, DEFAULT_READING_LISTS } from '../constants/enums.js'
 
 /**
  * Ensure a member has their default shelves.
- *
- * Called lazily on first access as well as at registration, so accounts
- * created before this feature existed — or by a seeder that skipped it — get
- * their shelves the first time they look for them.
  */
 export const ensureDefaults = async (userId) => {
   const existing = await ReadingList.countDocuments({ user: userId });
@@ -198,9 +186,6 @@ export const removeBook = async (listId, userId, bookId) => {
 
 /**
  * Toggle a book in the member's favourites.
- *
- * The endpoint a heart button calls. One request instead of "check whether it
- * is there, then add or remove", which would be two round-trips and a race.
  */
 export const toggleFavourite = async (userId, bookId) => {
   await ensureDefaults(userId);

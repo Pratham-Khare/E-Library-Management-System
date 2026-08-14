@@ -1,35 +1,16 @@
 /**
- * ---------------------------------------------------------------------------
- * CIRCULATION SERVICE — borrow, return, renew
- * ---------------------------------------------------------------------------
- * The heart of the library.
+ * Circulation — borrow, return, renew.
  *
- * THE CONCURRENCY PROBLEM, and how it is solved.
+ * Borrowing is a read-then-write in the obvious implementation, and two members
+ * clicking "borrow" on the last copy would both succeed. The usual fix is a
+ * transaction, but MongoDB only offers those on a replica set and a default
+ * local install is standalone.
  *
- * The obvious way to borrow a book is:
- *
- *     const copy = await BookCopy.findOne({ book, status: 'AVAILABLE' });
- *     copy.status = 'ON_LOAN';
- *     await copy.save();
- *
- * That is a read-then-write. Two members clicking "borrow" on the last copy at
- * the same moment BOTH read it as AVAILABLE before either writes, and both
- * succeed. One physical book, two people told it is theirs.
- *
- * The usual fix is a transaction — but MongoDB only offers those on a replica
- * set, and a default local install is standalone. Code that requires them
- * crashes on a developer's laptop.
- *
- * So the claim is a single atomic `findOneAndUpdate` filtered on
- * `status: 'AVAILABLE'` (see BookCopy.claimAvailableCopy). MongoDB guarantees
- * single-document atomicity on EVERY deployment, so of two concurrent claims
- * exactly one matches and the other gets null. No transaction needed, and no
- * window to race in.
- *
- * The surrounding multi-document work — creating the loan, adjusting counters
- * — runs inside a real transaction when one is available and with compensating
- * rollback when not. But correctness of the CLAIM never depends on that.
- * ---------------------------------------------------------------------------
+ * So the claim is a single atomic findOneAndUpdate filtered on
+ * `status: 'AVAILABLE'` (see BookCopy.claimAvailableCopy): of two concurrent
+ * claims exactly one matches. The surrounding multi-document work uses a real
+ * transaction when one is available and compensating rollback when not, but
+ * correctness of the CLAIM never depends on that.
  */
 
 import mongoose from 'mongoose';
@@ -55,21 +36,12 @@ import {
 import { USER_STATUS } from '../constants/roles.js';
 import { parsePagination, parseSort, paginateQuery } from '../utils/pagination.js';
 
-/* ===========================================================================
- * Eligibility
- * ======================================================================== */
+/* Eligibility */
 
 /**
- * Decide whether a member may borrow, and say precisely why not.
- *
- * Checks run in order of severity, and each returns a SPECIFIC error code —
- * "you have a book overdue" and "you owe ₹250" call for completely different
- * actions from the member, and a generic "not eligible" tells them nothing.
- *
- * @param {object} user
- * @param {string} bookId
- * @returns {Promise<{eligible: true, policy: object}>}
- * @throws {ApiError} With the specific reason.
+ * Decide whether a member may borrow, and say precisely why not. Each check
+ * returns a SPECIFIC error code — "you have a book overdue" and "you owe ₹250"
+ * call for different actions, and a generic "not eligible" tells them nothing.
  */
 export const assertEligibleToBorrow = async (user, bookId) => {
   const policy = config.library.getPolicy(user.membershipType);
@@ -151,26 +123,13 @@ const calculateDueDate = (membershipType, type) => {
   return due;
 };
 
-/* ===========================================================================
- * Borrowing — physical
- * ======================================================================== */
+/* Borrowing — physical */
 
 /**
- * Borrow a physical copy.
- *
- * THE ORDER OF OPERATIONS IS DELIBERATE:
- *
- *   1. Check eligibility (cheap reads, fail fast before touching anything).
- *   2. Create the Loan document FIRST, so the copy claim has an id to point at.
- *   3. ATOMICALLY claim a copy — the compare-and-swap that cannot be raced.
- *   4. If no copy was free, DELETE the loan we just created and report why.
- *   5. Update the denormalised counters.
- *
- * Creating the loan before the claim looks backwards, but the alternative —
- * claim, then create — leaves a copy marked ON_LOAN with no loan pointing at
- * it if the create fails, which is a far worse state to recover from. An
- * orphaned loan is trivially deleted; an orphaned ON_LOAN copy is invisible
- * and permanently unborrowable.
+ * Borrow a physical copy. The order matters: the Loan is created BEFORE the
+ * copy is claimed, so a failure leaves an orphaned loan (trivially deleted)
+ * rather than a copy marked ON_LOAN with nothing pointing at it (invisible and
+ * permanently unborrowable).
  */
 export const borrowPhysical = async (user, bookId, { issuedBy = null, dueAtOverride = null } = {}) => {
   const book = await Book.findOne({ _id: bookId, isDeleted: false, status: 'ACTIVE' });
@@ -215,13 +174,8 @@ export const borrowPhysical = async (user, bookId, { issuedBy = null, dueAtOverr
     status: LOAN_STATUS.ACTIVE,
   });
 
-  /**
-   * THE ATOMIC CLAIM.
-   *
-   * A single findOneAndUpdate filtered on `status: AVAILABLE`. Two concurrent
-   * borrows of the last copy cannot both match — MongoDB applies the update to
-   * one document atomically, and the loser gets null.
-   */
+  // The atomic claim: two concurrent borrows of the last copy cannot both
+  // match, and the loser gets null.
   const copy = await BookCopy.claimAvailableCopy(book._id, loan._id);
 
   if (!copy) {
@@ -263,18 +217,12 @@ export const borrowPhysical = async (user, bookId, { issuedBy = null, dueAtOverr
   return { loan, copy, book, policy };
 };
 
-/* ===========================================================================
- * Borrowing — digital
- * ======================================================================== */
+/* Borrowing — digital */
 
 /**
- * Borrow the digital edition.
- *
- * The licence claim is the digital analogue of the copy claim, and has the
- * same race. It is solved the same way: a single atomic update whose FILTER
- * asserts a licence is free (`activeLicenses < concurrentLicenses`, expressed
- * as `$expr` with `$lt`), so two concurrent borrows of the last licence cannot
- * both succeed.
+ * Borrow the digital edition. The licence claim has the same race as the copy
+ * claim and is solved the same way — one atomic update whose filter asserts a
+ * licence is free.
  */
 export const borrowDigital = async (user, bookId) => {
   const book = await Book.findOne({ _id: bookId, isDeleted: false, status: 'ACTIVE' });
@@ -298,12 +246,9 @@ export const borrowDigital = async (user, bookId) => {
   }
 
   /**
-   * ATOMIC LICENCE CLAIM.
-   *
-   * `$expr` lets the filter compare two fields of the same document, so the
-   * "is a licence free?" test and the increment happen as one operation. A
-   * read-then-write here would over-issue licences under concurrency exactly
-   * as it would over-issue copies.
+   * Atomic licence claim. `$expr` lets the filter compare two fields of the
+   * same document, so the "is one free?" test and the increment are one
+   * operation.
    */
   const claimed = await Book.findOneAndUpdate(
     {
@@ -376,16 +321,12 @@ export const borrowDigital = async (user, bookId) => {
   return { loan, book, asset };
 };
 
-/* ===========================================================================
- * Returning
- * ======================================================================== */
+/* Returning */
 
 /**
- * Compute and record the fine for an overdue loan.
- *
- * IDEMPOTENT. Updates an existing OVERDUE fine rather than creating a second
- * one, so the nightly job running twice in a day cannot double a member's
- * debt. This is the property that makes a scheduled accrual job safe to retry.
+ * Compute and record the fine for an overdue loan. Idempotent — updates an
+ * existing OVERDUE fine rather than raising a second, so the nightly job
+ * running twice cannot double a member's debt.
  */
 export const assessOverdueFine = async (loan, { assessedBy = null } = {}) => {
   const daysOverdue = loan.daysOverdue;
@@ -429,11 +370,8 @@ export const assessOverdueFine = async (loan, { assessedBy = null } = {}) => {
 };
 
 /**
- * Return a physical book.
- *
- * Releases the copy, closes the loan, and assesses a fine if it is late.
- * The copy release is filtered on `status: ON_LOAN`, so a double-return cannot
- * increment availability twice and invent a copy the library does not own.
+ * Return a physical book. The copy release is filtered on ON_LOAN, so a double
+ * return cannot increment availability twice.
  */
 export const returnPhysical = async (loanId, { returnedTo = null, condition = null, note = null } = {}) => {
   const loan = await Loan.findById(loanId).populate('book', 'title price').populate('user', 'name email stats');
@@ -502,11 +440,8 @@ export const returnPhysical = async (loanId, { returnedTo = null, condition = nu
 };
 
 /**
- * Recompute a member's cached outstanding-fine total from the Fine collection.
- *
- * `User.stats.outstandingFine` is a cache that exists so a profile page does
- * not need an aggregation. Recomputing rather than incrementing means a missed
- * update self-corrects instead of drifting permanently.
+ * Recompute the cached outstanding-fine total. Recomputing rather than
+ * incrementing means a missed update self-corrects instead of drifting.
  */
 export const refreshUserFineTotal = async (userId) => {
   const { total } = await Fine.outstandingTotalForUser(userId);
@@ -514,22 +449,12 @@ export const refreshUserFineTotal = async (userId) => {
   return total;
 };
 
-/* ===========================================================================
- * Renewing
- * ======================================================================== */
+/* Renewing */
 
 /**
- * Extend a loan.
- *
- * With reservations out of scope there is no queue to consult, so exactly two
- * conditions apply:
- *
- *   1. Under the renewal cap for the member's tier.
- *   2. NOT ALREADY OVERDUE.
- *
- * Rule 2 is the one that matters. Without it, a member could dodge an accruing
- * fine indefinitely by renewing after the fact — which would make the entire
- * overdue system decorative.
+ * Extend a loan. Exactly two conditions: under the renewal cap, and NOT
+ * already overdue. The second is what stops a member dodging an accruing fine
+ * indefinitely by renewing after the fact.
  */
 export const renew = async (loanId, { renewedBy = null } = {}) => {
   const loan = await Loan.findById(loanId).populate('user', 'membershipType name');
@@ -587,9 +512,7 @@ export const renew = async (loanId, { renewedBy = null } = {}) => {
   };
 };
 
-/* ===========================================================================
- * Lost items
- * ======================================================================== */
+/* Lost items */
 
 /**
  * Declare a loan lost.
@@ -654,9 +577,7 @@ export const markLost = async (loanId, { markedBy = null, note = null } = {}) =>
   return { loan, fine };
 };
 
-/* ===========================================================================
- * Digital expiry
- * ======================================================================== */
+/* Digital expiry */
 
 /**
  * Expire a digital loan and release its licence.
@@ -713,9 +634,7 @@ export const returnDigital = async (loanId, userId) => {
   return expired;
 };
 
-/* ===========================================================================
- * Queries
- * ======================================================================== */
+/* Queries */
 
 /** A member's loans, with filtering. */
 export const listForUser = async (userId, query = {}) => {

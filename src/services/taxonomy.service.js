@@ -1,21 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * TAXONOMY SERVICE — shared CRUD for Author and Publisher
- * ---------------------------------------------------------------------------
  * Authors and publishers are structurally the same thing: a named entity that
  * books point at, carrying a slug, a denormalised `bookCount`, and a soft
  * delete. Writing the same six functions twice would mean fixing every bug
- * twice, so a factory produces both.
- *
- * Categories are NOT built from this factory — the ancestor tree makes their
- * create, move and delete genuinely different operations, and forcing them
- * into a shared shape would obscure that.
- *
- * THE DELETE GUARD IS THE INTERESTING PART. Deleting an author who still has
- * books would leave those books pointing at a document that no longer exists,
- * and every book page would then render a blank author. So deletion is refused
- * while references remain, and the error says exactly how many.
- * ---------------------------------------------------------------------------
  */
 
 import { Book } from '../models/Book.js';
@@ -27,14 +14,6 @@ import logger from '../utils/logger.js';
 
 /**
  * Build a CRUD service for a taxonomy model.
- *
- * @param {object} options
- * @param {import('mongoose').Model} options.model
- * @param {string} options.label Human-readable name, used in messages.
- * @param {string} options.bookField The field on Book referencing this model.
- * @param {string} options.notFoundCode
- * @param {string} options.hasBooksCode
- * @param {string[]} options.sortableFields
  */
 export const createTaxonomyService = ({
   model,
@@ -116,10 +95,6 @@ export const createTaxonomyService = ({
 
   /**
    * Soft-delete, refusing while books still reference this record.
-   *
-   * Deleting anyway would leave those books pointing at nothing, and a book
-   * page rendering a blank author is a data bug that surfaces much later and
-   * far from its cause.
    */
   const remove = async (identifier) => {
     const record = await getByIdOrSlug(identifier);
@@ -166,11 +141,6 @@ export const createTaxonomyService = ({
 
   /**
    * Merge a duplicate into a canonical record.
-   *
-   * Catalogues accumulate duplicates — "J.R.R. Tolkien" and "J. R. R. Tolkien"
-   * arrive from different import sources, and neither is wrong. Merging
-   * repoints every book at the survivor and retires the other, which is the
-   * only way to make an author page complete again.
    */
   const merge = async (sourceIdentifier, targetIdentifier) => {
     const source = await getByIdOrSlug(sourceIdentifier);

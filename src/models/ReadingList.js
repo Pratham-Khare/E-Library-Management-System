@@ -1,7 +1,4 @@
 /**
- * ---------------------------------------------------------------------------
- * READING LIST MODEL
- * ---------------------------------------------------------------------------
  * Favourites, "want to read", "currently reading", "finished", and any custom
  * shelf a member names themselves.
  *
@@ -14,7 +11,6 @@
  * collection. A reading list is read as a unit and rarely exceeds a few
  * hundred entries, so one document beats N+1 lookups. `maxItems` guards
  * against a list growing toward MongoDB's 16MB document ceiling.
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';
@@ -78,9 +74,7 @@ const readingListSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /** A member's lists, and the "is this book in my favourites?" lookup. */
 readingListSchema.index({ user: 1, type: 1 });
@@ -89,16 +83,9 @@ readingListSchema.index({ user: 1, type: 1 });
 readingListSchema.index({ user: 1, name: 1 }, { unique: true });
 
 /**
- * Share slugs must be unique — but only among lists that HAVE one.
- *
- * `sparse: true` would NOT work here, and the distinction is easy to get
- * wrong: sparse skips documents where the field is ABSENT, but `shareSlug`
- * defaults to `null`, so every document has it. Under a sparse unique index
- * the second unshared list collides with the first on `shareSlug: null`, and
- * a member ends up unable to create more than one list.
- *
- * `partialFilterExpression` restricts the constraint to documents where the
- * value is actually a string, which is what was meant all along.
+ * Share slugs unique among lists that HAVE one. `sparse: true` would not work:
+ * sparse skips ABSENT fields, but `shareSlug` defaults to null, so the second
+ * unshared list would collide with the first.
  */
 readingListSchema.index(
   { shareSlug: 1 },
@@ -112,9 +99,7 @@ readingListSchema.index(
 /** "Which lists contain this book?" — powers the favourite count on a book. */
 readingListSchema.index({ 'items.book': 1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 readingListSchema.virtual('bookCount').get(function bookCount() {
   return this.items?.length ?? 0;
@@ -125,9 +110,7 @@ readingListSchema.virtual('isDefault').get(function isDefault() {
   return this.type !== READING_LIST_TYPE.CUSTOM;
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /** Bound on list size, so one document cannot approach MongoDB's 16MB limit. */
 readingListSchema.statics.MAX_ITEMS = 1000;
@@ -135,11 +118,8 @@ readingListSchema.statics.MAX_ITEMS = 1000;
 readingListSchema.statics.generateShareSlug = () => crypto.randomBytes(12).toString('hex');
 
 /**
- * Create the four default shelves for a new member.
- *
- * `ordered: false` so one duplicate does not abort the batch — this runs on
- * registration and must not fail the whole signup because a retry recreated
- * one shelf.
+ * The four default shelves for a new member. `ordered: false` so one duplicate
+ * cannot abort a signup.
  */
 readingListSchema.statics.createDefaultsFor = async function createDefaultsFor(userId, defaults) {
   const documents = defaults.map(({ type, name }) => ({ user: userId, type, name, items: [] }));

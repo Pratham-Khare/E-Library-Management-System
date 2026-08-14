@@ -1,22 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * USER ROUTES  —  /api/v1/users
- * ---------------------------------------------------------------------------
  * ROUTE ORDER MATTERS HERE. Express matches in declaration order, so the
  * literal `/me` routes MUST come before the `/:userId` pattern — otherwise
  * `/users/me` matches `/users/:userId` with `userId = "me"` and every handler
- * downstream has to special-case it.
- *
- * Note the layered guards on the parameterised routes:
- *
- *     authenticate           — who are you?
- *     requireOwnerOrStaff    — is this record yours, or are you staff?
- *     validate               — is the input well-formed?
- *
- * The ownership guard is what stops a signed-in member reading another
- * member's contact details and borrowing history by changing one id in the
- * URL. A role check alone would not.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -40,9 +26,7 @@ const router = Router();
 // Everything under /users requires authentication.
 router.use(authenticate);
 
-/* ===========================================================================
- * Self-service — must be declared before /:userId
- * ======================================================================== */
+/* Self-service — must be declared before /:userId */
 
 /**
  * @openapi
@@ -134,9 +118,7 @@ router.patch(
  */
 router.delete('/me', userController.deactivateMe);
 
-/* ===========================================================================
- * Staff
- * ======================================================================== */
+/* Staff */
 
 /**
  * @openapi

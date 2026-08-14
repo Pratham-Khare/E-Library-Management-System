@@ -1,19 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * LOGGING CONFIGURATION
- * ---------------------------------------------------------------------------
  * Describes HOW logging behaves; the winston instance itself is built in
  * src/utils/logger.js. Keeping the two apart means the logger can import this
  * without config/index.js importing the logger, which would be a cycle.
- *
- * Two output shapes:
- *   development — colourised, human-readable single lines for a terminal.
- *   production  — structured JSON, so a log aggregator can index the fields.
- *
- * REDACTION is the security-relevant part. Passwords, tokens and API keys pass
- * through request bodies constantly; without an explicit deny-list they end up
- * in plaintext in a log file that is far less protected than the database.
- * ---------------------------------------------------------------------------
  */
 
 import path from 'node:path';
@@ -48,9 +36,7 @@ export const format = env.NODE_ENV === 'production' ? 'json' : 'pretty';
 /** Include a full stack trace on Error objects. */
 export const includeStack = true;
 
-/* ===========================================================================
- * File transports
- * ======================================================================== */
+/* File transports */
 
 export const files = Object.freeze({
   enabled: env.LOG_TO_FILE,
@@ -67,9 +53,7 @@ export const files = Object.freeze({
   handleRejections: true,
 });
 
-/* ===========================================================================
- * HTTP request logging (morgan)
- * ======================================================================== */
+/* HTTP request logging (morgan) */
 
 export const http = Object.freeze({
   enabled: env.LOG_HTTP_REQUESTS,
@@ -85,17 +69,11 @@ export const http = Object.freeze({
   skipPaths: Object.freeze(['/health', '/health/ready', '/favicon.ico']),
 });
 
-/* ===========================================================================
- * Redaction
- * ======================================================================== */
+/* Redaction */
 
 /**
  * Keys whose values are replaced with '[REDACTED]' anywhere they appear in a
  * logged object, at any depth. Matching is case-insensitive.
- *
- * This list is deliberately broad. The cost of redacting something harmless is
- * a slightly less useful log line; the cost of missing something is a password
- * sitting in plaintext on disk.
  */
 export const redactKeys = Object.freeze([
   'password',

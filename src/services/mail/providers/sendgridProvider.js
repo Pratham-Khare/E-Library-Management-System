@@ -1,23 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * SENDGRID MAIL PROVIDER
- * ---------------------------------------------------------------------------
  * Real delivery through the SendGrid v3 API.
- *
- * Two sending modes:
- *
- *   BUILT-IN TEMPLATE  — we render the HTML and text ourselves and hand
- *                        SendGrid a finished message. Works with nothing
- *                        configured in the dashboard.
- *   DYNAMIC TEMPLATE   — when a template ID is set for the notification type,
- *                        SendGrid renders it from `dynamicTemplateData`. Lets
- *                        non-developers edit email copy without a deploy.
- *
- * Errors are logged with SendGrid's own `response.body.errors`, which is where
- * the actionable detail lives. The single most common failure in practice is a
- * 403 for an unverified sender, and the generic message alone does not say so
- * — hence the explicit hint below.
- * ---------------------------------------------------------------------------
  */
 
 import sgMail from '@sendgrid/mail';
@@ -43,15 +25,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Send an email.
- *
- * @param {object} message
- * @param {string} message.to
- * @param {string} message.subject
- * @param {string} message.text
- * @param {string} message.html
- * @param {string} [message.type] Notification type — selects a dynamic template.
- * @param {object} [message.data] Data for a dynamic template.
- * @returns {Promise<{success: boolean, messageId: string|null, provider: string, error?: string}>}
  */
 export const send = async (message) => {
   ensureInitialised();

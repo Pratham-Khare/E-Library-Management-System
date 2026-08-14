@@ -1,18 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * HTTP REQUEST LOGGING
- * ---------------------------------------------------------------------------
  * Morgan, piped through winston so HTTP access logs land in the same place
  * and the same format as application logs. Two log systems writing to two
  * destinations makes correlating "the request came in" with "the handler threw"
- * needlessly manual.
- *
- * A custom `:request-id` token ties each access-log line to the application
- * log lines from the same request.
- *
- * Health-check paths are skipped — an uptime monitor polling every 10 seconds
- * would otherwise generate 8,640 lines a day that say nothing.
- * ---------------------------------------------------------------------------
  */
 
 import morgan from 'morgan';

@@ -1,23 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * PASSWORD HASHING & STRENGTH
- * ---------------------------------------------------------------------------
  * bcrypt via `bcryptjs`.
- *
- * WHY bcryptjs RATHER THAN bcrypt: the native `bcrypt` package compiles C++
- * through node-gyp, which on Windows requires Visual Studio Build Tools and
- * Python. That turns `npm install` into a support ticket. `bcryptjs` is pure
- * JavaScript — perhaps 30% slower to hash, which is completely irrelevant when
- * the whole point of the algorithm is to be deliberately slow, and the cost
- * factor is tunable anyway.
- *
- * WHY bcrypt AND NOT SHA-256: general-purpose hashes are designed to be FAST,
- * which is exactly wrong for passwords — a GPU tries billions of SHA-256
- * candidates per second. bcrypt is deliberately slow and its cost factor can
- * be raised as hardware improves. Each hash also carries its own random salt,
- * so identical passwords produce different hashes and one rainbow table cannot
- * crack two accounts.
- * ---------------------------------------------------------------------------
  */
 
 import bcrypt from 'bcryptjs';
@@ -26,20 +8,12 @@ import { bcryptSaltRounds } from '../config/jwt.js';
 /**
  * Hash a plaintext password.
  *
- * @param {string} plainPassword
  * @returns {Promise<string>} The bcrypt hash, salt included.
  */
 export const hashPassword = async (plainPassword) => bcrypt.hash(plainPassword, bcryptSaltRounds);
 
 /**
  * Verify a password against a stored hash.
- *
- * `bcrypt.compare` is constant-time with respect to the hash contents, so it
- * does not leak information through how long it takes to fail.
- *
- * @param {string} plainPassword
- * @param {string} hash
- * @returns {Promise<boolean>}
  */
 export const verifyPassword = async (plainPassword, hash) => {
   // A user with no stored hash (impossible via the API, but reachable through
@@ -48,17 +22,10 @@ export const verifyPassword = async (plainPassword, hash) => {
   return bcrypt.compare(plainPassword, hash);
 };
 
-/* ===========================================================================
- * Strength requirements
- * ======================================================================== */
+/* Strength requirements */
 
 /**
  * Minimum acceptable password.
- *
- * Length carries far more entropy than character-class rules — "correct horse
- * battery staple" beats "P@ss1!" by orders of magnitude — but a mixed-class
- * requirement is what most institutional policies expect, so both apply: a
- * real floor on length, plus modest class requirements.
  */
 export const PASSWORD_RULES = Object.freeze({
   minLength: 8,
@@ -83,13 +50,6 @@ const COMMON_PASSWORDS = new Set([
 
 /**
  * Check a password against the policy.
- *
- * Returns EVERY failure rather than stopping at the first, so a user fixing
- * their password sees the whole list at once instead of discovering one new
- * rule per attempt.
- *
- * @param {string} password
- * @returns {{ valid: boolean, errors: string[] }}
  */
 export const validatePasswordStrength = (password) => {
   const errors = [];

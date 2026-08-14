@@ -1,16 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * AI ROUTES  —  /api/v1/ai
- * ---------------------------------------------------------------------------
  * Every generation endpoint carries the `ai` rate limiter: 5 per member per
  * day, keyed by USER rather than IP. With a 100-call lifetime budget, an
  * IP-keyed limit would be trivially bypassed and a shared campus address would
- * throttle everyone at once.
- *
- * Staff are exempt from that limiter (see middlewares/rateLimiter.js) — a
- * librarian backfilling summaries should not be throttled by a limit designed
- * to stop one member burning the shared budget.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -55,9 +47,7 @@ const recommendationsQuery = z.object({
   explain: queryBoolean.optional(),
 });
 
-/* ===========================================================================
- * Summaries
- * ======================================================================== */
+/* Summaries */
 
 /**
  * @openapi
@@ -258,9 +248,7 @@ router.post(
   })
 );
 
-/* ===========================================================================
- * Recommendations
- * ======================================================================== */
+/* Recommendations */
 
 /**
  * @openapi
@@ -303,9 +291,7 @@ router.get(
   })
 );
 
-/* ===========================================================================
- * Staff
- * ======================================================================== */
+/* Staff */
 
 /**
  * @openapi

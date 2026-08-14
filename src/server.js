@@ -1,29 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * SERVER ENTRY POINT
- * ---------------------------------------------------------------------------
  * Owns the process lifecycle, in a deliberate order:
- *
- *   1. Validate configuration    (happens on import of config — fails fast)
- *   2. Ensure storage directories exist
- *   3. Connect to MongoDB
- *   4. Create the bootstrap admin, if none exists
- *   5. Start scheduled jobs
- *   6. Listen for HTTP traffic
- *   7. Shut down gracefully on a signal
- *
- * The ordering matters: the port is opened LAST, so the server never accepts a
- * request it cannot serve. A process that is listening but not connected to
- * its database returns 500s that look like application bugs; one that has not
- * opened the port yet simply is not there, which is a far more honest signal
- * to a load balancer.
- *
- * GRACEFUL SHUTDOWN is the other half. On SIGTERM (a container stop, a deploy)
- * the naive behaviour is to die instantly, cutting every in-flight request
- * mid-response — including a member's borrow request that has already written
- * a loan but not yet responded. Instead: stop accepting new connections, let
- * existing ones finish, close the database, then exit.
- * ---------------------------------------------------------------------------
  */
 
 import fs from 'node:fs/promises';
@@ -40,16 +16,10 @@ let server = null;
 /** Guards against a second shutdown being started while the first is running. */
 let shuttingDown = false;
 
-/* ===========================================================================
- * Startup steps
- * ======================================================================== */
+/* Startup steps */
 
 /**
  * Create the upload directories.
- *
- * Done at boot rather than lazily on first upload so that a permissions
- * problem surfaces immediately, in the startup logs, rather than as a
- * confusing 500 the first time a librarian tries to attach a cover image.
  */
 const ensureStorageDirectories = async () => {
   for (const directory of config.upload.directoriesToEnsure) {
@@ -68,11 +38,6 @@ const ensureStorageDirectories = async () => {
 
 /**
  * Print the startup banner.
- *
- * Worth the lines. Two of these values — the mail provider and the AI mode —
- * can differ from what .env appears to say, because both fall back when
- * misconfigured. Showing the RESOLVED state at boot means nobody has to
- * wonder later why no email arrived or why a summary looks generic.
  */
 const printBanner = () => {
   const capabilities = getCapabilities();
@@ -127,20 +92,10 @@ const warnAboutConfiguration = () => {
   }
 };
 
-/* ===========================================================================
- * Graceful shutdown
- * ======================================================================== */
+/* Graceful shutdown */
 
 /**
  * Stop accepting new work, let in-flight requests finish, release resources.
- *
- * The timeout is the safety net. `server.close()` waits for every open
- * connection to end, and a client holding a keep-alive socket open would
- * otherwise block shutdown indefinitely. After the configured grace period we
- * stop being polite.
- *
- * @param {string} signal What triggered the shutdown, for the log.
- * @param {number} [exitCode]
  */
 const shutdown = async (signal, exitCode = 0) => {
   if (shuttingDown) {
@@ -187,18 +142,13 @@ const shutdown = async (signal, exitCode = 0) => {
   }
 };
 
-/* ===========================================================================
- * Process-level safety nets
- * ======================================================================== */
+/* Process-level safety nets */
 
 /**
  * An unhandled rejection or uncaught exception means the process is in an
  * UNKNOWN state — a promise chain abandoned halfway, or a stack unwound past
  * every handler. Continuing risks serving corrupt data, so we log loudly and
  * exit; a process manager restarts into a clean state.
- *
- * This is a last resort, not error handling. Every expected failure is caught
- * by the central error handler long before reaching here.
  */
 const registerProcessHandlers = () => {
   process.on('unhandledRejection', (reason, promise) => {
@@ -223,9 +173,7 @@ const registerProcessHandlers = () => {
   process.on('SIGINT', () => shutdown('SIGINT'));
 };
 
-/* ===========================================================================
- * Boot
- * ======================================================================== */
+/* Boot */
 
 const start = async () => {
   registerProcessHandlers();
@@ -240,14 +188,6 @@ const start = async () => {
 
     /**
      * Create the first administrator if none exists.
-     *
-     * Must run before the port opens, so the API is never briefly reachable
-     * with no way to administer it. Idempotent — a restart is a no-op once any
-     * admin is present.
-     *
-     * A failure here is logged but NOT fatal: an existing installation already
-     * has its admins, and refusing to start over a bootstrap step would be a
-     * self-inflicted outage.
      */
     try {
       await ensureBootstrapAdmin();
@@ -259,10 +199,6 @@ const start = async () => {
 
     /**
      * Start the background jobs.
-     *
-     * After the database is connected — a job firing against an unavailable
-     * database would fail for no reason — and before the port opens, so the
-     * schedule is in place from the first request.
      */
     startScheduler();
 

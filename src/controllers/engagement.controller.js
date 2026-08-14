@@ -1,11 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * ENGAGEMENT CONTROLLER — reviews, reading lists, notifications
- * ---------------------------------------------------------------------------
  * Grouped in one controller because all three are member-centric features with
  * the same shape: read your own, write your own, and a small staff surface for
  * moderation. Splitting them would mean three near-identical files.
- * ---------------------------------------------------------------------------
  */
 
 import * as reviewService from '../services/review.service.js';
@@ -24,9 +21,7 @@ import {
 
 const isStaff = (user) => Boolean(user) && ['LIBRARIAN', 'ADMIN'].includes(user.role);
 
-/* ===========================================================================
- * Reviews
- * ======================================================================== */
+/* Reviews */
 
 export const reviews = {
   listForBook: asyncHandler(async (req, res) => {
@@ -96,9 +91,7 @@ export const reviews = {
   }),
 };
 
-/* ===========================================================================
- * Reading lists
- * ======================================================================== */
+/* Reading lists */
 
 export const readingLists = {
   mine: asyncHandler(async (req, res) => {
@@ -153,9 +146,6 @@ export const readingLists = {
 
   /**
    * The endpoint a heart button calls.
-   *
-   * One request rather than "check whether it is favourited, then add or
-   * remove" — which would be two round-trips and a race between them.
    */
   toggleFavourite: asyncHandler(async (req, res) => {
     const result = await readingListService.toggleFavourite(req.user.id, req.body.bookId);
@@ -163,9 +153,7 @@ export const readingLists = {
   }),
 };
 
-/* ===========================================================================
- * Notifications
- * ======================================================================== */
+/* Notifications */
 
 export const notifications = {
   list: asyncHandler(async (req, res) => {

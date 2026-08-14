@@ -1,10 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * USER REQUEST SCHEMAS
- * ---------------------------------------------------------------------------
  * Schemas for /users. Profile-update and password schemas live in
  * auth.validator.js, next to the flows that use them.
- * ---------------------------------------------------------------------------
  */
 
 import { z } from 'zod';
@@ -21,9 +17,7 @@ import { PASSWORD_PATTERN, PASSWORD_DESCRIPTION } from '../utils/password.js';
 import { ROLE_VALUES, MEMBERSHIP_TYPE_VALUES, USER_STATUS_VALUES, ROLES } from '../constants/roles.js';
 import { NOTIFICATION_TYPE_VALUES } from '../constants/enums.js';
 
-/* ===========================================================================
- * Listing
- * ======================================================================== */
+/* Listing */
 
 export const listUsersQuery = listQuery.extend({
   search: optionalString(200),
@@ -39,9 +33,7 @@ export const userIdParamSchema = z.object({
   userId: z.union([objectId, z.literal('me')]),
 });
 
-/* ===========================================================================
- * Administration
- * ======================================================================== */
+/* Administration */
 
 export const changeRoleSchema = z.object({
   role: z.enum(ROLE_VALUES, {
@@ -66,11 +58,6 @@ export const changeMembershipSchema = z.object({
 
 /**
  * Suspension requires a reason.
- *
- * Not bureaucracy: the reason is shown to the member when their login is
- * refused, and it is the only record of WHY the account was blocked once the
- * suspending librarian has moved on. A suspension with no explanation produces
- * a support ticket nobody can answer.
  */
 export const suspendUserSchema = z.object({
   reason: nonEmptyString('Suspension reason', { min: 5, max: 500 }),
@@ -90,17 +77,10 @@ export const createStaffSchema = z.object({
   phone: phone.optional(),
 });
 
-/* ===========================================================================
- * Notification preferences
- * ======================================================================== */
+/* Notification preferences */
 
 /**
  * A partial map of notification type to channel settings:
- *
- *     { "DUE_SOON": { "email": false }, "OVERDUE": { "inApp": true, "email": true } }
- *
- * Only the types present are changed; anything omitted keeps its current
- * setting, so a client can update one toggle without resending all eighteen.
  */
 export const notificationPreferencesSchema = z
   .record(

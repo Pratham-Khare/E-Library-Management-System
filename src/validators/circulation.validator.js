@@ -1,7 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
  * CIRCULATION REQUEST SCHEMAS — loans and fines
- * ---------------------------------------------------------------------------
  */
 
 import { z } from 'zod';
@@ -14,9 +12,7 @@ import {
   COPY_CONDITION_VALUES,
 } from '../constants/enums.js';
 
-/* ===========================================================================
- * Borrowing
- * ======================================================================== */
+/* Borrowing */
 
 export const borrowSchema = z.object({
   bookId: objectId,
@@ -26,10 +22,6 @@ export const borrowSchema = z.object({
 
 /**
  * A staff-desk issue, on behalf of a member.
- *
- * `dueAt` lets a librarian override the computed due date — for a reading-week
- * extension, or a title reserved for a class. Deliberately unavailable to
- * members, who would otherwise set their own due dates.
  */
 export const issueSchema = z.object({
   bookId: objectId,
@@ -61,9 +53,7 @@ export const listLoansQuery = listQuery.extend({
   bookId: objectId.optional(),
 });
 
-/* ===========================================================================
- * Fines
- * ======================================================================== */
+/* Fines */
 
 export const fineIdParam = z.object({ fineId: objectId });
 
@@ -80,11 +70,6 @@ export const payFineSchema = z.object({
 
 /**
  * Waiving requires a reason.
- *
- * A waiver writes off money the library was owed. Without a recorded reason it
- * cannot be distinguished from a mistake or a favour, and nobody can answer
- * "why was this cancelled?" months later. The minimum length is there because
- * "ok" is not a reason.
  */
 export const waiveFineSchema = z.object({
   note: z

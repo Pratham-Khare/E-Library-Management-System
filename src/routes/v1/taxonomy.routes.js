@@ -1,15 +1,8 @@
 /**
- * ---------------------------------------------------------------------------
  * TAXONOMY ROUTES — /authors, /publishers, /categories
- * ---------------------------------------------------------------------------
  * Authors and publishers expose an identical route surface, so a factory
  * builds both routers rather than duplicating seven route definitions and
  * their guards. Categories get their own router, because the tree adds
- * operations the other two do not have.
- *
- * Reading is PUBLIC throughout — browsing a library's authors should not
- * require an account. Writing requires staff.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -76,9 +69,7 @@ const buildTaxonomyRouter = (controller, schemas) => {
   return router;
 };
 
-/* ===========================================================================
- * Authors
- * ======================================================================== */
+/* Authors */
 
 /**
  * @openapi
@@ -203,9 +194,7 @@ export const authorRouter = buildTaxonomyRouter(authorController, {
   update: updateAuthorSchema,
 });
 
-/* ===========================================================================
- * Publishers
- * ======================================================================== */
+/* Publishers */
 
 /**
  * @openapi
@@ -292,9 +281,7 @@ export const publisherRouter = buildTaxonomyRouter(publisherController, {
   update: updatePublisherSchema,
 });
 
-/* ===========================================================================
- * Categories
- * ======================================================================== */
+/* Categories */
 
 export const categoryRouter = Router();
 

@@ -1,30 +1,11 @@
 /**
- * ---------------------------------------------------------------------------
- * API RESPONSE ENVELOPE
- * ---------------------------------------------------------------------------
  * Every successful response in this API has the same shape:
- *
- *     { "success": true, "message": "...", "data": ..., "meta": { ... } }
- *
- * A consistent envelope is worth the small ceremony. A client writes ONE
- * response handler instead of one per endpoint, `success` is checkable without
- * inspecting the status code, and adding `meta` later never breaks a caller
- * that only reads `data`.
- *
- * Usage in a controller:
- *     return ok(res, book, 'Book fetched');
- *     return created(res, loan, 'Book borrowed successfully');
- *     return paginated(res, books, { page, limit, total }, 'Books fetched');
- * ---------------------------------------------------------------------------
  */
 
 import { HTTP_STATUS } from '../constants/httpStatus.js';
 
 export class ApiResponse {
   /**
-   * @param {number} statusCode
-   * @param {*} data
-   * @param {string} message
    * @param {object|null} meta Pagination or other envelope-level context.
    */
   constructor(statusCode, data, message = 'Success', meta = null) {
@@ -48,16 +29,10 @@ export class ApiResponse {
   }
 }
 
-/* ===========================================================================
- * Send helpers
- * ======================================================================== */
+/* Send helpers */
 
 /**
  * 200 OK.
- * @param {import('express').Response} res
- * @param {*} data
- * @param {string} [message]
- * @param {object|null} [meta]
  */
 export const ok = (res, data = null, message = 'Success', meta = null) =>
   res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, message, meta).toJSON());
@@ -85,16 +60,6 @@ export const noContent = (res) => res.status(HTTP_STATUS.NO_CONTENT).send();
 
 /**
  * 200 with pagination metadata.
- *
- * Computes totalPages/hasNext/hasPrev here rather than making every controller
- * repeat the arithmetic — and rather than making every CLIENT repeat it, which
- * is where off-by-one bugs actually live.
- *
- * @param {import('express').Response} res
- * @param {Array} items
- * @param {{page: number, limit: number, total: number}} pageInfo
- * @param {string} [message]
- * @param {object} [extraMeta] Endpoint-specific extras, e.g. search facets.
  */
 export const paginated = (res, items, pageInfo, message = 'Success', extraMeta = {}) => {
   const page = Math.max(1, Number(pageInfo.page) || 1);

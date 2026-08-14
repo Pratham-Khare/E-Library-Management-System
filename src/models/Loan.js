@@ -1,28 +1,12 @@
 /**
- * ---------------------------------------------------------------------------
- * LOAN MODEL — the central circulation record
- * ---------------------------------------------------------------------------
- * One document per borrowing event. This is the collection the whole library
- * revolves around: who has what, when it is due, and what it cost them.
+ * The central circulation record — one document per borrowing event.
  *
- * TWO KINDS OF LOAN, sharing one shape:
+ * PHYSICAL loans take a specific BookCopy off the shelf and accrue a fine when
+ * late; DIGITAL loans consume a concurrent licence and expire on their own.
+ * One model, because the differences are two nullable fields.
  *
- *   PHYSICAL — a specific BookCopy leaves the shelf. It comes back when
- *              someone returns it, and accrues a fine if they are late.
- *   DIGITAL  — a concurrent LICENCE is consumed. Nothing to return; the loan
- *              expires on its own, and a cron job releases the licence.
- *
- * They share a model rather than being split, because almost everything about
- * them is identical — eligibility, limits, renewals, history — and the
- * differences are two nullable fields. Two collections would mean duplicating
- * every query that asks "what does this member have out?".
- *
- * `dueAt` is denormalised from the membership policy AT ISSUE TIME rather than
- * computed on read. If a librarian later changes the loan period in .env, an
- * existing loan's due date must not silently move — the borrower was told a
- * date, and that date is now a fact about this loan, not a function of current
- * configuration.
- * ---------------------------------------------------------------------------
+ * `dueAt` is fixed from the membership policy AT ISSUE TIME. Changing the loan
+ * period in .env later must not silently move an existing due date.
  */
 
 import mongoose from 'mongoose';
@@ -36,12 +20,7 @@ import {
 
 const { Schema, model } = mongoose;
 
-/**
- * One renewal, recorded rather than just counted.
- *
- * A bare `renewalCount` cannot answer "when was this extended, and by whom?" —
- * which is exactly what gets asked when a member disputes a fine.
- */
+/** One renewal, recorded rather than just counted — "when, and by whom?" is what gets asked when a fine is disputed. */
 const renewalSchema = new Schema(
   {
     at: { type: Date, default: Date.now },
@@ -86,13 +65,7 @@ const loanSchema = new Schema(
 
     issuedAt: { type: Date, default: Date.now, index: true },
 
-    /**
-     * When it must come back.
-     *
-     * Fixed at issue time from the member's policy — deliberately NOT
-     * recomputed on read. A borrower was quoted a date; changing library
-     * policy later must not retroactively make them overdue.
-     */
+    /** Fixed at issue time, never recomputed on read — see the header. */
     dueAt: { type: Date, required: true, index: true },
 
     returnedAt: { type: Date, default: null },
@@ -124,11 +97,8 @@ const loanSchema = new Schema(
     fine: { type: Schema.Types.ObjectId, ref: 'Fine', default: null },
 
     /**
-     * Days past due at the moment of return, frozen at that point.
-     *
-     * Stored rather than derived: after a book is returned, "how late was it?"
-     * must stop changing, and a derived value computed from `dueAt` and the
-     * current date would keep growing forever.
+     * Frozen at return. Stored rather than derived, so "how late was it?"
+     * stops changing once the book is back.
      */
     daysOverdueAtReturn: { type: Number, default: null },
 
@@ -143,9 +113,7 @@ const loanSchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /**
  * "What does this member currently have out?" — checked on EVERY borrow
@@ -153,11 +121,7 @@ const loanSchema = new Schema(
  */
 loanSchema.index({ user: 1, status: 1 });
 
-/**
- * The nightly overdue sweep: every open loan past its due date.
- * Compound and ordered so the job is an index range scan rather than a
- * collection scan that grows with the library's entire history.
- */
+/** The nightly overdue sweep, as an index range scan rather than a collection scan. */
 loanSchema.index({ status: 1, dueAt: 1 });
 
 /** "Does this member already have this title?" — the duplicate-borrow check. */
@@ -169,9 +133,7 @@ loanSchema.index({ type: 1, status: 1, dueAt: 1 });
 /** A book's circulation history, newest first. */
 loanSchema.index({ book: 1, issuedAt: -1 });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 /** Is the item still out? */
 loanSchema.virtual('isOpen').get(function isOpen() {
@@ -179,11 +141,8 @@ loanSchema.virtual('isOpen').get(function isOpen() {
 });
 
 /**
- * Whole days past due, right now. Zero when not yet due.
- *
- * Computed from calendar dates rather than elapsed milliseconds: a book due at
- * 09:00 and returned at 17:00 the SAME DAY is not one day late, and dividing
- * the millisecond difference would say it was.
+ * Whole days past due. Computed from calendar dates, not elapsed milliseconds:
+ * due at 09:00 and returned at 17:00 the same day is not one day late.
  */
 loanSchema.virtual('daysOverdue').get(function daysOverdue() {
   if (!this.isOpen) return this.daysOverdueAtReturn ?? 0;
@@ -212,9 +171,7 @@ loanSchema.virtual('isOverdue').get(function isOverdue() {
   return this.isOpen && new Date() > new Date(this.dueAt);
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /** A member's currently open loans. */
 loanSchema.statics.findOpenForUser = function findOpenForUser(userId) {
@@ -240,13 +197,7 @@ loanSchema.statics.hasOverdueItems = function hasOverdueItems(userId) {
   });
 };
 
-/**
- * Open loans past their due date — the nightly overdue sweep.
- *
- * Returns a CURSOR rather than an array. A library with years of history could
- * have thousands of overdue items, and loading them all into memory to iterate
- * would be needless; a cursor streams them.
- */
+/** Open loans past due, as a cursor — years of history should stream, not load. */
 loanSchema.statics.findOverdueCursor = function findOverdueCursor() {
   return this.find({
     status: { $in: OPEN_LOAN_STATUSES },
@@ -258,9 +209,8 @@ loanSchema.statics.findOverdueCursor = function findOverdueCursor() {
 };
 
 /**
- * Loans due within `days` days that have not yet been reminded about.
- * The `dueSoonNotifiedAt` filter is what stops the job emailing the same
- * member every night for a week.
+ * Loans due within `days` that have not been reminded about. The
+ * `dueSoonNotifiedAt` filter stops the job emailing the same member nightly.
  */
 loanSchema.statics.findDueSoon = function findDueSoon(days) {
   const now = new Date();

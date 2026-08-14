@@ -1,30 +1,12 @@
 /**
- * ---------------------------------------------------------------------------
- * CATEGORY MODEL — a hierarchical subject tree
- * ---------------------------------------------------------------------------
- * Categories nest:
+ * A hierarchical subject tree (Science > Computer Science > Algorithms).
  *
- *     Science
- *       └─ Computer Science
- *            ├─ Algorithms
- *            └─ Machine Learning
+ * Alongside `parentId`, each document stores `ancestors[]` — a materialised
+ * path holding the full chain from the root. That turns "everything under
+ * Science, at any depth" into one indexed query instead of one per level.
  *
- * Storing only `parentId` makes the immediate parent cheap but "every book
- * under Science, at any depth" expensive — that needs one query per level, and
- * the depth is not known in advance.
- *
- * So this uses a MATERIALISED PATH: alongside `parentId`, each document stores
- * `ancestors[]`, the full chain from the root down. "Algorithms" holds
- * `[Science, Computer Science]`. Fetching an entire subtree then becomes ONE
- * indexed query:
- *
- *     Category.find({ ancestors: scienceId })
- *
- * The cost is that moving a node has to rewrite the ancestors of everything
- * beneath it — handled in `rebuildDescendantAncestors()` below. Reads vastly
- * outnumber reorganisations in a library catalogue, so that is the right way
- * round.
- * ---------------------------------------------------------------------------
+ * The cost is that moving a node rewrites the ancestors of everything beneath
+ * it; see rebuildDescendantAncestors(). Reads vastly outnumber reorganisations.
  */
 
 import mongoose from 'mongoose';
@@ -55,13 +37,9 @@ const categorySchema = new Schema(
     },
 
     /**
-     * The full ancestor chain, ROOT FIRST. The materialised path that makes
-     * subtree queries a single indexed lookup. Maintained by the hooks below —
-     * never set this by hand.
-     *
-     * Indexed via `schema.index({ ancestors: 1 })` below, not with
-     * `index: true` here — declaring both creates the same index twice, which
-     * Mongoose warns about at startup.
+     * The full ancestor chain, root first. Maintained by the hooks below —
+     * never set by hand. Indexed separately, not with `index: true` here,
+     * which would declare the same index twice.
      */
     ancestors: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
 
@@ -88,9 +66,7 @@ const categorySchema = new Schema(
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-/* ===========================================================================
- * Indexes
- * ======================================================================== */
+/* Indexes */
 
 /** Listing the children of a node, in display order. */
 categorySchema.index({ parent: 1, displayOrder: 1, name: 1 });
@@ -98,9 +74,7 @@ categorySchema.index({ parent: 1, displayOrder: 1, name: 1 });
 categorySchema.index({ ancestors: 1 });
 categorySchema.index({ name: 'text' }, { name: 'category_text_search' });
 
-/* ===========================================================================
- * Virtuals
- * ======================================================================== */
+/* Virtuals */
 
 /** Immediate children, populated on demand. */
 categorySchema.virtual('children', {
@@ -114,9 +88,7 @@ categorySchema.virtual('isRoot').get(function isRoot() {
   return this.parent === null || this.parent === undefined;
 });
 
-/* ===========================================================================
- * Hooks
- * ======================================================================== */
+/* Hooks */
 
 /** Unique slug from the name. See Author for why the collision loop exists. */
 categorySchema.pre('validate', async function generateSlug(next) {
@@ -137,14 +109,10 @@ categorySchema.pre('validate', async function generateSlug(next) {
 });
 
 /**
- * Recompute `ancestors` and `depth` from the parent, and refuse to create a
- * cycle.
- *
- * THE CYCLE CHECK MATTERS. Setting a node's parent to one of its own
- * descendants produces a loop with no root, and every subsequent tree walk
- * either recurses forever or silently loses the branch. Because the parent
- * already carries its own full ancestor chain, detecting it is a single
- * membership test rather than a traversal.
+ * Recompute `ancestors` and `depth`, refusing to create a cycle. Setting a
+ * node's parent to its own descendant produces a loop with no root, and every
+ * later tree walk either recurses forever or loses the branch. The parent
+ * already carries its chain, so detecting it is one membership test.
  */
 categorySchema.pre('save', async function buildAncestors(next) {
   if (!this.isModified('parent')) return next();
@@ -185,19 +153,12 @@ categorySchema.pre('save', async function buildAncestors(next) {
   }
 });
 
-/* ===========================================================================
- * Statics
- * ======================================================================== */
+/* Statics */
 
 /**
- * Rewrite the ancestor paths of everything beneath a moved node.
- *
- * The cost of the materialised path: moving "Computer Science" under a
- * different root invalidates the stored chain of every category below it.
- * Done as one bulk write rather than a save per document, since a deep subtree
- * could otherwise be hundreds of round-trips.
- *
- * @param {string} categoryId The node that moved.
+ * Rewrite the ancestor paths beneath a moved node — the cost of the
+ * materialised path. One bulk write, since a deep subtree would otherwise be
+ * hundreds of round-trips.
  */
 categorySchema.statics.rebuildDescendantAncestors = async function rebuildDescendantAncestors(categoryId) {
   const root = await this.findById(categoryId).select('ancestors');
@@ -227,11 +188,8 @@ categorySchema.statics.rebuildDescendantAncestors = async function rebuildDescen
 };
 
 /**
- * Every id in a category's subtree, INCLUDING the category itself.
- *
- * This is what makes "books in Science" return books tagged with Algorithms:
- * the search filter expands one category id into the whole branch. A single
- * indexed query, at any depth.
+ * Every id in a subtree, including the node itself. This is what makes "books
+ * in Science" return books tagged Algorithms.
  */
 categorySchema.statics.subtreeIds = async function subtreeIds(categoryId) {
   const descendants = await this.find({ ancestors: categoryId, isDeleted: false }).select('_id').lean();

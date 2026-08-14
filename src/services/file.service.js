@@ -1,19 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * FILE SERVICE
- * ---------------------------------------------------------------------------
  * Uploads, text extraction, and the ACCESS-CONTROLLED ebook reader.
- *
- * The reader is the part that matters. An ebook is the library's actual asset,
- * so `getReadableAsset()` verifies an active digital loan before returning
- * anything, and the file is streamed through a controller rather than mounted
- * statically. A static mount would mean anyone who obtained or guessed a URL
- * could download the entire collection without ever borrowing a thing.
- *
- * Range support is not a nicety: browser PDF viewers request byte ranges to
- * render page 400 without downloading pages 1-399, and a server that ignores
- * `Range` forces a full 50MB transfer for every seek.
- * ---------------------------------------------------------------------------
  */
 
 import fs from 'node:fs/promises';
@@ -29,20 +15,10 @@ import { EBOOK_FORMAT, EXTRACTION_STATUS, LOAN_STATUS } from '../constants/enums
 import { cleanupTempFile } from '../middlewares/upload.js';
 import { signDownloadToken, verifyDownloadToken } from '../utils/tokens.js';
 
-/* ===========================================================================
- * Text extraction
- * ======================================================================== */
+/* Text extraction */
 
 /**
  * Extract text from a PDF, to feed the AI summariser.
- *
- * FAILURE IS NEVER FATAL. A scanned PDF has no text layer, an encrypted one
- * cannot be parsed, and pdf-parse occasionally chokes on malformed files. In
- * every case the asset is marked FAILED or SKIPPED and the book still works —
- * summaries simply fall back to catalogue metadata. Refusing the upload
- * because text extraction failed would trade a small feature for the whole one.
- *
- * @param {string} assetId
  */
 export const extractText = async (assetId) => {
   const asset = await DigitalAsset.findById(assetId).select('+storageKey');
@@ -70,14 +46,6 @@ export const extractText = async (assetId) => {
   try {
     /**
      * `unpdf` rather than the more commonly seen `pdf-parse`.
-     *
-     * pdf-parse has not been published since 2018 and bundles a pdf.js build
-     * of the same vintage, which rejects perfectly valid PDFs with "bad XRef
-     * entry" — including ones its own recovery path should handle. unpdf wraps
-     * a current pdf.js, is ESM-native, and parses the same files correctly.
-     *
-     * Imported lazily so the PDF engine is only loaded when a PDF is actually
-     * uploaded, rather than on every server start.
      */
     const { getDocumentProxy, extractText: extractPdfText } = await import('unpdf');
 
@@ -146,9 +114,7 @@ export const extractText = async (assetId) => {
   }
 };
 
-/* ===========================================================================
- * Uploads
- * ======================================================================== */
+/* Uploads */
 
 /** Attach a cover image to a book, replacing any existing one. */
 export const uploadCover = async (bookId, file) => {
@@ -202,16 +168,6 @@ export const uploadAvatar = async (userId, file) => {
 
 /**
  * Attach an ebook to a book.
- *
- * DEDUPLICATION: the file's SHA-256 is computed first, and if the identical
- * file is already stored the existing bytes are reused rather than written
- * again. Uploading the same 40MB PDF to two catalogue records should cost 40MB
- * of disk, not 80.
- *
- * Text extraction runs in the BACKGROUND. Parsing a 600-page PDF takes several
- * seconds, and holding the HTTP response open for it would make every ebook
- * upload feel broken. The asset is usable immediately; the extracted text
- * arrives shortly after and only affects AI summaries.
  */
 export const uploadEbook = async (bookId, file, { isPreview = false, concurrentLicenses } = {}, actor) => {
   const book = await Book.findOne({ _id: bookId, isDeleted: false });
@@ -297,10 +253,6 @@ export const listAssets = async (bookId) => {
 
 /**
  * Detach an ebook.
- *
- * The file itself is deleted only when NO other asset references the same
- * checksum — deduplication means several records can share one file, and
- * removing it while another still points at it would break that one.
  */
 export const removeAsset = async (assetId) => {
   const asset = await DigitalAsset.findById(assetId).select('+storageKey');
@@ -326,25 +278,10 @@ export const removeAsset = async (assetId) => {
   return { deleted: true, fileRemoved: others === 0 };
 };
 
-/* ===========================================================================
- * Access-controlled reading
- * ======================================================================== */
+/* Access-controlled reading */
 
 /**
  * Fetch an asset the caller is entitled to read, or refuse.
- *
- * THE AUTHORISATION GATE for the whole digital collection. Access is granted
- * only when one of these holds:
- *
- *   - the asset is a PREVIEW (a sample chapter, deliberately public);
- *   - the caller is library STAFF;
- *   - the caller holds an ACTIVE digital loan for this book.
- *
- * The loan check queries the Loan collection directly rather than trusting any
- * flag on the user, so revoking access is a matter of the loan expiring — no
- * separate bookkeeping to forget.
- *
- * @returns {Promise<{asset: object, reason: string}>}
  */
 export const getReadableAsset = async (assetId, user) => {
   const asset = await DigitalAsset.findById(assetId).select('+storageKey');
@@ -396,20 +333,6 @@ export const getReadableAsset = async (assetId, user) => {
 
 /**
  * Parse an HTTP `Range` header.
- *
- * Only the single-range `bytes=start-end` form is handled — which is what
- * every browser PDF viewer actually sends. Multi-range requests are rare and
- * require a multipart/byteranges response; returning the whole file for them
- * is correct behaviour, just not optimal.
- *
- * Both bounds are optional and mean different things:
- *   `bytes=0-1023`  the first 1024 bytes
- *   `bytes=1024-`   from 1024 to the end
- *   `bytes=-500`    the LAST 500 bytes (used to read a PDF's trailer)
- *
- * @param {string} rangeHeader
- * @param {number} fileSize
- * @returns {{start: number, end: number, satisfiable: boolean}|null}
  */
 export const parseRange = (rangeHeader, fileSize) => {
   if (!rangeHeader) return null;
@@ -457,18 +380,10 @@ export const recordAccess = (assetId) => {
   DigitalAsset.updateOne({ _id: assetId }, { $inc: { accessCount: 1 } }).catch(() => {});
 };
 
-/* ===========================================================================
- * Signed download links
- * ======================================================================== */
+/* Signed download links */
 
 /**
  * Mint a short-lived signed URL for an ebook.
- *
- * Exists because a browser's built-in PDF viewer — or an `<a download>` link —
- * cannot attach an `Authorization` header. Rather than loosening the endpoint,
- * the caller proves entitlement once through the normal authenticated route
- * and receives a token that is scoped to ONE asset and expires in minutes, so
- * a leaked URL is worth very little.
  */
 export const createDownloadToken = async (assetId, user) => {
   const { asset, loan } = await getReadableAsset(assetId, user);

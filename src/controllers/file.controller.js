@@ -1,19 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * FILE CONTROLLER
- * ---------------------------------------------------------------------------
  * Uploads, and the streaming ebook reader.
- *
- * `readEbook` is the one handler in this codebase that does NOT return a JSON
- * envelope, because it returns file bytes. It implements HTTP range requests
- * properly — `206 Partial Content` with `Content-Range` — which is what lets a
- * browser PDF viewer jump to page 400 without downloading the first 399.
- *
- * Errors DURING a stream are handled separately from errors before it: once
- * the first byte is written the status code is already sent, so a JSON error
- * body cannot be produced. Those failures destroy the connection instead, so
- * the client sees a truncated transfer rather than JSON appended to a PDF.
- * ---------------------------------------------------------------------------
  */
 
 import config from '../config/index.js';
@@ -52,9 +38,7 @@ const toAsset = (asset) => ({
   uploadedAt: asset.createdAt,
 });
 
-/* ===========================================================================
- * Uploads
- * ======================================================================== */
+/* Uploads */
 
 export const uploadCover = asyncHandler(async (req, res) => {
   const book = await fileService.uploadCover(req.params.bookId, req.file);
@@ -112,19 +96,10 @@ export const reextract = asyncHandler(async (req, res) => {
   return ok(res, result, `Extraction finished with status ${result.status}`);
 });
 
-/* ===========================================================================
- * The reader
- * ======================================================================== */
+/* The reader */
 
 /**
  * Stream an ebook to an entitled reader.
- *
- * Access is checked first (active digital loan, staff, or a preview), then the
- * bytes are streamed with full HTTP range support.
- *
- * Why streaming rather than `res.sendFile`: `sendFile` cannot apply the
- * authorisation check per request the way this does, and reading a 50MB PDF
- * into a buffer would occupy 50MB of heap for the duration of every response.
  */
 export const readEbook = asyncHandler(async (req, res) => {
   const { asset, reason } = await fileService.getReadableAsset(req.params.assetId, req.user);
@@ -212,10 +187,6 @@ export const readEbook = asyncHandler(async (req, res) => {
 
 /**
  * Mint a short-lived signed download URL.
- *
- * For contexts that cannot send an Authorization header — an `<a download>`
- * link, or a native PDF viewer. The token is scoped to one asset and expires
- * in minutes.
  */
 export const getDownloadLink = asyncHandler(async (req, res) => {
   const result = await fileService.createDownloadToken(req.params.assetId, req.user);
@@ -224,10 +195,6 @@ export const getDownloadLink = asyncHandler(async (req, res) => {
 
 /**
  * Serve a file against a signed token.
- *
- * Deliberately NOT behind `authenticate` — the token IS the credential, which
- * is the entire reason this endpoint exists. It is narrower than a session:
- * one asset, a few minutes, no other capability.
  */
 export const downloadWithToken = asyncHandler(async (req, res) => {
   const token = req.query.token || extractBearerToken(req);

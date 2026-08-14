@@ -1,29 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
- * API ERROR
- * ---------------------------------------------------------------------------
  * The one error type services and controllers throw. The central error handler
  * recognises it and turns it into a clean response; anything else it catches
  * becomes a generic 500, because an unrecognised error might carry internals
- * that should never reach a client.
- *
- * Three pieces of information, each with a distinct job:
- *
- *   statusCode — the HTTP semantics.
- *   code       — a STABLE machine-readable identifier from constants/errorCodes.js.
- *                This is what a client branches on. It never changes once shipped.
- *   message    — for a human. Reworded freely; never parsed by a client.
- *
- * `details` carries structured extras — the per-field list for a validation
- * failure, or the earliest due date when a book has no available copy. That
- * last one matters: telling someone "no copies available" is far less useful
- * than telling them when one is expected back.
- *
- * Usage:
- *     throw ApiError.notFound('No book with that id', ERROR_CODES.BOOK_NOT_FOUND);
- *     throw ApiError.conflict('All copies are on loan', ERROR_CODES.NO_COPY_AVAILABLE,
- *                             { earliestDueAt, activeLoans: 3 });
- * ---------------------------------------------------------------------------
  */
 
 import { HTTP_STATUS, HTTP_STATUS_TEXT } from '../constants/httpStatus.js';
@@ -31,14 +9,6 @@ import { ERROR_CODES } from '../constants/errorCodes.js';
 
 export class ApiError extends Error {
   /**
-   * @param {number} statusCode  HTTP status to respond with.
-   * @param {string} message     Human-readable explanation.
-   * @param {string} [code]      Stable code from ERROR_CODES.
-   * @param {object} [options]
-   * @param {Array<{field: string, message: string}>} [options.errors] Per-field detail.
-   * @param {object} [options.details] Extra structured context for the client.
-   * @param {Error}  [options.cause]   The underlying error, for logging only.
-   * @param {boolean}[options.expose]  Whether the message is safe to show a client.
    */
   constructor(statusCode, message, code = ERROR_CODES.INTERNAL_ERROR, options = {}) {
     super(message || HTTP_STATUS_TEXT[statusCode] || 'Error');
@@ -53,10 +23,6 @@ export class ApiError extends Error {
      * Operational errors are the expected ones — a missing book, a bad
      * password, an exhausted quota. Their messages are written for users and
      * are safe to return verbatim.
-     *
-     * Non-operational errors are bugs. Their messages may leak a query, a file
-     * path or a stack frame, so the handler replaces them with something
-     * generic and logs the real one server-side.
      */
     this.isOperational = true;
     this.expose = options.expose ?? statusCode < 500;
@@ -213,8 +179,6 @@ export class ApiError extends Error {
   /**
    * The response body. `requestId` ties the client's error to the exact server
    * log entry, which turns "it broke" into a one-query investigation.
-   *
-   * @param {string} [requestId]
    */
   toJSON(requestId) {
     const body = {

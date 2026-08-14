@@ -1,13 +1,7 @@
 /**
- * ---------------------------------------------------------------------------
  * ENGAGEMENT ROUTES — /reviews, /reading-lists, /notifications
- * ---------------------------------------------------------------------------
  * Three routers exported from one file, because they share the same shape:
  * member-owned data with a small staff moderation surface.
- *
- * Review READING is public — a catalogue whose reviews require an account to
- * read is a catalogue nobody browses. Everything else needs authentication.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';
@@ -34,9 +28,7 @@ import {
   markReadSchema,
 } from '../../validators/engagement.validator.js';
 
-/* ===========================================================================
- * Reviews
- * ======================================================================== */
+/* Reviews */
 
 export const reviewRouter = Router();
 
@@ -233,9 +225,7 @@ reviewRouter.post(
   reviews.moderate
 );
 
-/* ===========================================================================
- * Reading lists
- * ======================================================================== */
+/* Reading lists */
 
 export const readingListRouter = Router();
 
@@ -392,9 +382,7 @@ readingListRouter.delete(
   readingLists.removeBook
 );
 
-/* ===========================================================================
- * Notifications
- * ======================================================================== */
+/* Notifications */
 
 export const notificationRouter = Router();
 

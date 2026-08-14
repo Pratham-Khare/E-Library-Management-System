@@ -1,12 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
  * LOAN ROUTES  —  /api/v1/loans
- * ---------------------------------------------------------------------------
  * Everything here requires authentication — there is no anonymous borrowing.
- *
- * Literal paths (`/me`, `/issue`, `/eligibility`) are declared before
- * `/:loanId`, or they would be matched as loan identifiers.
- * ---------------------------------------------------------------------------
  */
 
 import { Router } from 'express';

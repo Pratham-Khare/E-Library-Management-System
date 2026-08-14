@@ -1,22 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * ENVIRONMENT LOADING & VALIDATION
- * ---------------------------------------------------------------------------
  * This is the ONLY file in the entire codebase that reads `process.env`.
- *
- * Why validate at boot instead of reading env vars where they are needed?
- * Because an undefined env var read at request time produces a confusing
- * downstream failure — `undefined` silently becomes NaN, or a JWT gets signed
- * with the secret `"undefined"`. Validating up front converts that whole class
- * of bug into a single, readable startup error that names the exact key.
- *
- * Every value is coerced to its real type (number, boolean, array) here, so
- * the rest of the app never has to think about the fact that env vars are
- * always strings.
- *
- * Exports the raw validated `env` object. Application code should import the
- * structured `config` from ./index.js instead of using this directly.
- * ---------------------------------------------------------------------------
  */
 
 import path from 'node:path';
@@ -32,9 +15,7 @@ export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 // over the file — which is what you want in production.
 dotenv.config({ path: path.join(ROOT_DIR, '.env'), override: false });
 
-/* ===========================================================================
- * Reusable coercion helpers
- * ======================================================================== */
+/* Reusable coercion helpers */
 
 /**
  * Parses the many ways a human writes "yes" in an env file.
@@ -126,9 +107,7 @@ const secret = (label) =>
     .string({ required_error: `${label} is required` })
     .min(32, `${label} must be at least 32 characters — generate one with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`);
 
-/* ===========================================================================
- * The schema
- * ======================================================================== */
+/* The schema */
 
 const envSchema = z
   .object({
@@ -360,9 +339,7 @@ const envSchema = z
     }
   });
 
-/* ===========================================================================
- * Parse, or fail loudly
- * ======================================================================== */
+/* Parse, or fail loudly */
 
 const parsed = envSchema.safeParse(process.env);
 

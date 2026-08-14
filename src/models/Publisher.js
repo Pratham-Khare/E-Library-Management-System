@@ -1,14 +1,10 @@
 /**
- * ---------------------------------------------------------------------------
- * PUBLISHER MODEL
- * ---------------------------------------------------------------------------
  * Same reasoning as Author: a separate collection rather than a string field.
  *
  * Publishers matter to a library in ways a plain string cannot support —
  * acquisitions are negotiated per publisher, and "show me everything we hold
  * from Oxford University Press" is a real question that string matching answers
  * badly the moment someone types "OUP".
- * ---------------------------------------------------------------------------
  */
 
 import mongoose from 'mongoose';

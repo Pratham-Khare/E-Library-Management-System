@@ -1,21 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
  * EMAIL CONFIGURATION (SendGrid)
- * ---------------------------------------------------------------------------
  * Two providers behind one interface:
- *
- *   sendgrid — real delivery through the SendGrid API.
- *   console  — renders each email to the log. No account, no key, no network.
- *
- * THE FALLBACK IS THE IMPORTANT PART. If MAIL_PROVIDER=sendgrid but the API
- * key is missing or still a placeholder, this file resolves the provider to
- * `console` and records why. The app logs one clear warning at boot and keeps
- * running — password resets, due-date reminders and every other email still
- * "work", they just land in the log instead of an inbox.
- *
- * That means the SendGrid key can be added later as a pure .env change, with
- * no code edit and no broken intermediate state.
- * ---------------------------------------------------------------------------
  */
 
 import env from './env.js';

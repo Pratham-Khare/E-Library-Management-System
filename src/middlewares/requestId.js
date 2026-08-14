@@ -1,19 +1,6 @@
 /**
- * ---------------------------------------------------------------------------
- * REQUEST ID
- * ---------------------------------------------------------------------------
  * Stamps every request with a unique id, exposes it on `req.id`, and returns
  * it in the `X-Request-Id` response header and in every error body.
- *
- * This is what turns "the app gave me an error" into a single log query. A
- * user reports the id from their failed response; you grep for it and get
- * every log line that request produced, in order.
- *
- * An inbound `X-Request-Id` is honoured so a trace started by a gateway or a
- * frontend carries through — but it is validated first. Echoing an arbitrary
- * client-supplied string straight into logs and headers invites header
- * injection and log forging.
- * ---------------------------------------------------------------------------
  */
 
 import { randomUUID } from 'node:crypto';

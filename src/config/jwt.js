@@ -1,24 +1,5 @@
 /**
- * ---------------------------------------------------------------------------
- * JWT CONFIGURATION
- * ---------------------------------------------------------------------------
  * Four distinct token types, each with its OWN secret and lifetime:
- *
- *   ACCESS   (15m) — sent on every request. Short-lived by design, so a stolen
- *                    token stops working quickly.
- *   REFRESH  (7d)  — exchanged for a new access token. Stored HASHED in the
- *                    database, rotated on every use, with reuse detection.
- *   RESET    (30m) — single-use password-reset link.
- *   DOWNLOAD (5m)  — signs a direct ebook download URL.
- *
- * Why separate secrets rather than one? Because with a shared secret, a
- * password-reset token — which is emailed in plaintext and may sit in an inbox
- * forever — could be replayed as an access token. Different keys make that
- * structurally impossible. env.js enforces that the three are distinct.
- *
- * Every token also carries `iss` and `aud` claims and a `type` field, so a
- * token minted for one purpose is rejected when presented for another.
- * ---------------------------------------------------------------------------
  */
 
 import env from './env.js';
